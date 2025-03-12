@@ -28,7 +28,8 @@ function createRoom(roomId) {
             players: {}
         },
         pendingMessages: {}, // Track messages from each player
-        translationTimer: null
+        translationTimer: null,
+        passengerMapping: null // Will store the mapping of real players to passenger numbers
     };
 
     return true;
@@ -91,17 +92,20 @@ function startTranslationCountdown(roomId) {
             room.room.cycleCount++;
             
             // Check if we've reached the maximum number of cycles (10)
-            if (room.room.cycleCount >= 2) {
+            if (room.room.cycleCount >= 1) {
                 // End the game
                 room.room.status = 'completed';
                 
-                // Send a game over message
+                // The passenger reveal will now happen after the captain makes their decision
+                // instead of automatically at the end of the game
+                
+                // Send a game over message without the reveal
                 const gameOverMsg = JSON.stringify({
                     type: 'CHAT_MESSAGE',
                     payload: {
                         roomKey: roomId,
                         sender: "System",
-                        text: "<b>Game Over!</b> The maximum number of cycles has been reached. The captain must now decide which pod to leave behind.",
+                        text: "<b>Game Over!</b> The maximum number of rounds has been reached. The captain must now decide which pod(s) to leave behind.",
                         timestamp: Date.now(),
                         isPrivate: false
                     }
@@ -167,22 +171,82 @@ async function processPendingMessages(roomId) {
     }
 
     try {
+        // Get the passenger mapping (created when the game started)
+        const passengerMapping = room.passengerMapping || {};
+        
+        // Create an array to hold all passenger messages (real and AI)
+        const allPassengerMessages = [null, null, null, null]; // Initialize with nulls for all 4 passengers
+        
         // Format messages for all players, excluding host
-        const playersMessages = Object.entries(room.room.players).map(([nickname, player]) => {
-            if (nickname === Object.keys(room.room.players)[0]) {
-                return null;
+        const nonHostPlayers = Object.entries(room.room.players)
+            .filter(([nickname, _]) => nickname !== Object.keys(room.room.players)[0]);
+        
+        // Place real player messages in their assigned positions
+        nonHostPlayers.forEach(([nickname, player]) => {
+            const passengerNumber = passengerMapping[nickname];
+            if (passengerNumber && passengerNumber >= 1 && passengerNumber <= 4) {
+                allPassengerMessages[passengerNumber - 1] = {
+                    clientID: player.clientId,
+                    message: room.pendingMessages[nickname] || "NO_MESSAGE_SENT",
+                    isReal: true,
+                    passengerNumber: passengerNumber
+                };
             }
-            return {
-                clientID: player.clientId,
-                message: room.pendingMessages[nickname] || "NO_MESSAGE_SENT"
-            };
-        }).filter(Boolean);
+        });
+        
+        // Count how many real player messages we have
+        const realMessageCount = allPassengerMessages.filter(msg => msg !== null).length;
+        const fakeCount = 4 - realMessageCount;
+        
+        // Identify which positions need AI-generated messages
+        const emptyPositions = [];
+        allPassengerMessages.forEach((msg, index) => {
+            if (msg === null) {
+                emptyPositions.push(index + 1); // Passenger numbers are 1-indexed
+            }
+        });
+        
+        // Get the most recent captain's question if available
+        let captainQuestion = "";
+        const hostNickname = Object.keys(room.room.players)[0];
+        const recentMessages = [...Object.entries(room.pendingMessages)];
+        for (let i = recentMessages.length - 1; i >= 0; i--) {
+            if (recentMessages[i][0] === hostNickname) {
+                captainQuestion = recentMessages[i][1];
+                break;
+            }
+        }
 
-        const fakeCount = 4 - playersMessages.length;
+        // Format real player messages for AI processing with their assigned passenger numbers
+        const playersMessagesWithPositions = [];
+        nonHostPlayers.forEach(([nickname, player]) => {
+            const passengerNumber = passengerMapping[nickname];
+            const message = room.pendingMessages[nickname];
+            
+            if (passengerNumber) {
+                playersMessagesWithPositions.push({
+                    passengerNumber: passengerNumber,
+                    clientID: player.clientId,
+                    message: message || "NO_MESSAGE_SENT",
+                    isReal: true
+                });
+            }
+        });
 
         const extendedMessage = {
-            instruction: `Rephrase the following messages with standard language. Then, based on the provided messages, generate ${fakeCount} additional fake player's responses so that the total number of passenger responses equals 4. The output must be valid JSON formatted as { "players": [ { "player": "Passenger 1", "message": "..." }, { "player": "Passenger 2", "message": "..." }, { "player": "Passenger 3", "message": "..." }, { "player": "Passenger 4", "message": "..." } ] }.`,
-            players: playersMessages
+            instruction: `Perform the following tasks:
+1. Rephrase ALL real player messages with standard language, maintaining their meaning but changing the wording.
+2. For positions where NO_MESSAGE_SENT is indicated, randomly do one of the following with equal probability (50/50):
+   a. Generate a relevant response based on the captain's question: "${captainQuestion}"
+   b. Generate static noise or garbled communication (like "*static* ...can't...hear..." or "*interference* ...system...malfunction...")
+3. For empty passenger positions (${emptyPositions.join(', ')}), generate completely new responses.
+
+The output must be valid JSON formatted as:
+{ "players": [ { "player": "Passenger 1", "message": "..." }, { "player": "Passenger 2", "message": "..." }, { "player": "Passenger 3", "message": "..." }, { "player": "Passenger 4", "message": "..." } ] }
+`,
+            players: playersMessagesWithPositions,
+            emptyPositions: emptyPositions,
+            captainQuestion: captainQuestion
         };
 
         const aiResponse = await generateAIResponse(JSON.stringify(extendedMessage));
@@ -190,10 +254,36 @@ async function processPendingMessages(roomId) {
         if (aiResponse) {
             try {
                 const parsedResponse = JSON.parse(aiResponse);
-                const formattedResponse = parsedResponse.players
-                    .map((player, index) => {
-                        const message = player.message === "NO_MESSAGE_SENT" ? "Did not send a message" : player.message;
-                        return `<b>Passenger ${index + 1}</b>: "${message}"`;
+                
+                // Process all messages from the AI response
+                parsedResponse.players.forEach(player => {
+                    // Extract passenger number from the player string (e.g., "Passenger 1" -> 1)
+                    const passengerNumber = parseInt(player.player.replace('Passenger ', ''));
+                    
+                    if (passengerNumber >= 1 && passengerNumber <= 4) {
+                        // Check if this position already has a real player message
+                        const existingMessage = allPassengerMessages[passengerNumber - 1];
+                        
+                        if (existingMessage) {
+                            // Update the message content with the AI's rephrased version
+                            existingMessage.message = player.message;
+                        } else {
+                            // This is an AI-generated message for an empty position
+                            allPassengerMessages[passengerNumber - 1] = {
+                                message: player.message,
+                                isReal: false,
+                                passengerNumber: passengerNumber
+                            };
+                        }
+                    }
+                });
+                
+                // Format all messages in passenger number order
+                const formattedResponse = allPassengerMessages
+                    .map((msg, index) => {
+                        const passengerNum = index + 1;
+                        const message = msg?.message === "NO_MESSAGE_SENT" ? "Did not send a message" : msg?.message || "Error: Missing message";
+                        return `<b>Passenger ${passengerNum}</b>: "${message}"`;
                     })
                     .join('<br>');
                 console.log(formattedResponse);
@@ -250,12 +340,34 @@ async function processPendingMessages(roomId) {
     }
 }
 
+// Create a safe copy of the room object for JSON serialization
+function createSafeRoomCopy(room) {
+    if (!room) return null;
+    
+    // Create a new object with only the properties we want to send to clients
+    return {
+        room: { ...room.room },
+        pendingMessages: { ...room.pendingMessages },
+        passengerMapping: room.passengerMapping
+        // Exclude circular references like timers
+    };
+}
+
 // Broadcast to all clients in a room
 function broadcastToRoom(roomId, message) {
     const room = rooms[roomId];
     if (!room) return;
     
-    const payload = room
+    // Handle the payload, ensuring we don't include circular references
+    let payload;
+    if (message.payload === room) {
+        // If the payload is the room object, create a safe copy
+        payload = createSafeRoomCopy(room);
+    } else {
+        // Otherwise use the provided payload
+        payload = message.payload || {};
+    }
+    
     const messageStr = JSON.stringify({
         type: message.type,
         payload
@@ -307,6 +419,57 @@ function removeClientFromRoom(client, roomId) {
         type: 'GAME_STATE',
         payload: room
     });
+}
+
+// Add a new function to handle the passenger reveal
+function sendPassengerReveal(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+    
+    // Generate a message revealing which passengers were real and which were AI
+    let revealMessage = "<b>Passenger Reveal:</b><br>";
+    
+    // Get the passenger mapping
+    const passengerMapping = room.passengerMapping || {};
+    
+    // Reverse the mapping to get passenger number -> player name
+    const reversedMapping = {};
+    Object.entries(passengerMapping).forEach(([playerName, passengerNum]) => {
+        reversedMapping[passengerNum] = playerName;
+    });
+    
+    // Create the reveal message for each passenger
+    for (let i = 1; i <= 4; i++) {
+        const playerName = reversedMapping[i];
+        if (playerName) {
+            revealMessage += `Passenger ${i}: <span style="color: #4ade80;">Real Player (${playerName})</span><br>`;
+        } else {
+            revealMessage += `Passenger ${i}: <span style="color: #f87171;">AI-Generated</span><br>`;
+        }
+    }
+    
+    // Send the reveal message
+    const revealMsg = JSON.stringify({
+        type: 'CHAT_MESSAGE',
+        payload: {
+            roomKey: roomId,
+            sender: "System",
+            text: revealMessage,
+            timestamp: Date.now(),
+            isPrivate: false
+        }
+    });
+    
+    // Broadcast to all clients in the room
+    for (const [clientId, clientData] of Object.entries(clients)) {
+        if (clientData.room === roomId) {
+            try {
+                clientData.socket.send(revealMsg);
+            } catch (err) {
+                console.error(`[WebSocket] Error sending reveal message to client ${clientId}:`, err);
+            }
+        }
+    }
 }
 
 export default defineWebSocketHandler({
@@ -484,16 +647,18 @@ export default defineWebSocketHandler({
                 }
 
                 case 'PLAYER_READY': {
+                    const { playerNickname, isReady } = data;
                     const roomId = clients[clientId]?.room;
                     const room = rooms[roomId];
                     if (!room) return;
 
-                    const player = room.room.players[data.playerNickname]
+                    // Update player ready status
+                    const player = room.room.players[playerNickname];
                     if (player && player.clientId === clientId) {
-                        player.ready = data.isReady;
+                        player.ready = isReady;
                         broadcastToRoom(roomId, {
                             type: 'GAME_STATE',
-                            payload: room
+                            payload: createSafeRoomCopy(room)
                         });
                     }
                     break;
@@ -516,6 +681,32 @@ export default defineWebSocketHandler({
                     }
                     
                     if (Array.from(Object.values(room.room.players)).every(p => p.ready)) {
+                        // Create a mapping of real players to passenger numbers
+                        // Get non-host player nicknames
+                        const nonHostPlayers = Object.entries(room.room.players)
+                            .filter(([nickname, _]) => nickname !== hostNickname)
+                            .map(([nickname, _]) => nickname);
+                        
+                        // Create an array of passenger positions (1-4)
+                        const passengerPositions = [1, 2, 3, 4];
+                        
+                        // Shuffle the passenger positions
+                        for (let i = passengerPositions.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [passengerPositions[i], passengerPositions[j]] = [passengerPositions[j], passengerPositions[i]];
+                        }
+                        
+                        // Create the mapping: { playerNickname: passengerNumber }
+                        const passengerMapping = {};
+                        nonHostPlayers.forEach((nickname, index) => {
+                            // Assign player to a random position (up to the number of real players)
+                            passengerMapping[nickname] = passengerPositions[index];
+                        });
+                        
+                        // Store the mapping in the room state
+                        room.passengerMapping = passengerMapping;
+                        console.log(`[WebSocket] Created passenger mapping:`, passengerMapping);
+                        
                         room.room.status = 'playing';
                         broadcastToRoom(roomId, {
                             type: 'GAME_STATE',
@@ -550,6 +741,15 @@ export default defineWebSocketHandler({
                     // Start translation countdown
                     startTranslationCountdown(roomId);
 
+                    break;
+                }
+
+                case 'CAPTAIN_DECISION': {
+                    const { roomKey, selectedPassengers } = data.payload;
+                    console.log(`[WebSocket] Captain's decision for room ${roomKey}:`, selectedPassengers);
+                    
+                    // Send the passenger reveal after the captain's decision
+                    sendPassengerReveal(roomKey);
                     break;
                 }
             }

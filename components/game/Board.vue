@@ -11,7 +11,19 @@
          class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
                 bg-blue-900/90 text-green-400 px-6 py-2 rounded-lg shadow-lg 
                 border border-blue-500">
-      <b> {{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round </b> • Ends in {{ gameState.room.countdown }} second(s)... • Cycle {{ gameState.room.cycleCount + 1 }}/10
+      <div class="flex flex-col items-center">
+        <div class="flex items-center justify-between w-full">
+          <b> {{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round </b>
+          <span>• Cycle {{ gameState.room.cycleCount + 1 }}/10</span>
+        </div>
+        <div class="w-full mt-2 bg-gray-700 rounded-full h-2.5">
+          <div class="bg-green-500 h-2.5 rounded-full transition-all duration-1000 ease-linear" 
+               :style="{ width: timerProgressPercentage + '%' }"></div>
+        </div>
+        <div class="text-sm mt-1 w-full text-right">
+          {{ formatCountdown(clientCountdown) }}
+        </div>
+      </div>
     </div>
 
     <!-- Game Completed Banner -->
@@ -171,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
   roomKey: {
@@ -186,7 +198,8 @@ const {
   setPlayerReady,
   startGame,
   messages,
-  sendChatMessage
+  sendChatMessage,
+  sendCaptainDecision
 } = inject('game');
 
 // Add these refs for copy functionality
@@ -198,6 +211,52 @@ const captainDecisionMade = ref(false);
 const selectedPassengerCount = computed(() => {
   return selectedPassengers.value.filter(selected => selected).length;
 });
+
+// Timer-related refs and computed properties
+const lastCountdownValue = ref(null);
+const clientCountdown = ref(null);
+const timerProgress = ref(100);
+const timerProgressPercentage = computed(() => timerProgress.value);
+const timerInterval = ref(null);
+
+// Round durations in seconds (matching server constants)
+const ROUND_DURATIONS = {
+  'translation': 10,
+  'question': 20,
+  'answer': 30
+};
+
+// Format countdown to show minutes and seconds when needed
+const formatCountdown = (seconds) => {
+  if (seconds === null) return '';
+  if (seconds < 60) {
+    return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+  } else {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  }
+};
+
+// Start a client-side timer that updates every second
+const startClientTimer = () => {
+  // Clear any existing timer
+  if (timerInterval.value) {
+    clearInterval(timerInterval.value);
+  }
+  
+  // Set up a new timer that updates every second
+  timerInterval.value = setInterval(() => {
+    if (clientCountdown.value > 0) {
+      clientCountdown.value--;
+      // Update the progress bar
+      timerProgress.value = (clientCountdown.value / lastCountdownValue.value) * 100;
+    } else {
+      // Stop the timer when it reaches zero
+      clearInterval(timerInterval.value);
+    }
+  }, 1000);
+};
 
 // Function to get the number of fake passengers (total - real)
 function getFakePassengerCount() {
@@ -221,6 +280,9 @@ function submitCaptainDecision() {
   
   // Send the message as the captain
   sendChatMessage(decisionMessage);
+  
+  // Send a special message to trigger passenger reveal
+  sendCaptainDecision(selectedIndices);
   
   // Disable the modal after decision is made
   captainDecisionMade.value = true;
@@ -280,9 +342,35 @@ function onStartGame() {
   }
 }
 
+// Watch for changes in the countdown value or round type to update the timer
+watch([() => gameState.value.room.countdown, () => gameState.value.room.round], ([newCountdown, newRound], [oldCountdown, oldRound]) => {
+  // If round changed or this is the first update
+  if (newRound !== oldRound || lastCountdownValue.value === null) {
+    // Set the maximum countdown value based on the round type
+    const maxCountdown = ROUND_DURATIONS[newRound] || newCountdown;
+    lastCountdownValue.value = maxCountdown;
+    clientCountdown.value = newCountdown;
+    timerProgress.value = (newCountdown / maxCountdown) * 100;
+    
+    // Start the client-side timer
+    startClientTimer();
+  } else if (newCountdown !== oldCountdown) {
+    // Sync with server countdown if there's a discrepancy
+    clientCountdown.value = newCountdown;
+    timerProgress.value = (newCountdown / lastCountdownValue.value) * 100;
+  }
+});
+
 // Generate star background
 onMounted(() => {
   createStarfield();
+});
+
+// Clean up interval when component is unmounted
+onUnmounted(() => {
+  if (timerInterval.value) {
+    clearInterval(timerInterval.value);
+  }
 });
 
 // Function to create a rotating starfield

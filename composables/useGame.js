@@ -246,6 +246,19 @@ export function useGame() {
         }));
     };
 
+    // Add new method for sending captain's decision
+    const sendCaptainDecision = (selectedPassengers) => {
+        if (!ws || connectionStatus.value !== 'connected') return;
+
+        ws.send(JSON.stringify({
+            type: 'CAPTAIN_DECISION',
+            payload: {
+                roomKey: gameState.value.room.id,
+                selectedPassengers: selectedPassengers
+            }
+        }));
+    };
+
     return {
         // State
         connectionStatus,
@@ -266,6 +279,7 @@ export function useGame() {
         clearNickname,
         openNicknameModal,
         isNicknameModalOpen,
-        sendChatMessage
+        sendChatMessage,
+        sendCaptainDecision
     };
 }
