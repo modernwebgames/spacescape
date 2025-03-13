@@ -1,6 +1,6 @@
 # Spacescape
 
-<img src="/public/spacescape.png" alt="Game Logo" width="300" align="left"/>
+<img src="/public/spacescape.png" alt="Game Logo" width="300"/>
 
 A real-time multiplayer space-themed social deduction game built with Nuxt 3 and WebSockets. Players join as crew members on a spaceship with a malfunctioning reactor, where the captain must ultimately decide which passenger pods to leave behind.
 
@@ -110,6 +110,5 @@ MIT
 ## Authors
 
 Korhan Özdemir - [@korhanozdemir](https://github.com/korhanozdemir)
-Sefa Şenlik - [@sefasenlik](https://github.com/sefasenlik)
 
-Project Link: [https://github.com/modernwebgames/spacescape](https://github.com/modernwebgames/spacescape)
+Sefa Şenlik - [@sefasenlik](https://github.com/sefasenlik)
