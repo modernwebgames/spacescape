@@ -1,5 +1,7 @@
 # Spacescape
 
+_Transferred from [/politicals/tree/chatgame](https://github.com/sefasenlik/politicals/tree/chatgame)_
+
 <img src="/public/spacescape.png" alt="Game Logo" width="300"/>
 
 A real-time multiplayer space-themed social deduction game built with Nuxt 3 and WebSockets. Players join as crew members on a spaceship with a malfunctioning reactor, where the captain must ultimately decide which passenger pods to leave behind.
