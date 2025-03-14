@@ -4,7 +4,6 @@ import { generateAIResponse } from '../ai-chat.js';
 const rooms = {} // Store our rooms
 const clients = {}  // Store client -> room mapping
 const clientIds = new WeakMap(); // Store client IDs
-const TRANSLATION_COUNTDOWN = 10000; // 10 seconds
 const QUESTION_COUNTDOWN = 20000; // 20 seconds
 const ANSWER_COUNTDOWN = 30000; // 30 seconds
 
@@ -42,6 +41,7 @@ function startTranslationCountdown(roomId) {
     // Clear any existing timer
     if (room.translationTimer) {
         clearTimeout(room.translationTimer);
+        room.translationTimer = null;
     }
 
     // Set the initial countdown based on the round
@@ -49,8 +49,10 @@ function startTranslationCountdown(roomId) {
         room.room.countdown = QUESTION_COUNTDOWN / 1000;
     } else if (room.room.round === 'answer') {
         room.room.countdown = ANSWER_COUNTDOWN / 1000;
-    } else {
-        room.room.countdown = TRANSLATION_COUNTDOWN / 1000;
+    } else if (room.room.round === 'translation') {
+        // For translation round, we don't need a countdown
+        // as it will end after AI response
+        room.room.countdown = null;
     }
 
     // Broadcast the initial state with the countdown
@@ -59,21 +61,24 @@ function startTranslationCountdown(roomId) {
         payload: room
     });
 
-    // Create a countdown interval that updates clients every second
-    const countdownInterval = setInterval(() => {
-        if (room.room.countdown > 0) {
-            room.room.countdown--;
-            
-            // Broadcast the updated countdown
-            broadcastToRoom(roomId, {
-                type: 'GAME_STATE',
-                payload: room
-            });
-        } else {
-            // Clear the interval when countdown reaches zero
-            clearInterval(countdownInterval);
-        }
-    }, 1000);
+    // Only create a countdown interval for question and answer rounds
+    let countdownInterval = null;
+    if (room.room.round !== 'translation') {
+        countdownInterval = setInterval(() => {
+            if (room.room.countdown > 0) {
+                room.room.countdown--;
+                
+                // Broadcast the updated countdown
+                broadcastToRoom(roomId, {
+                    type: 'GAME_STATE',
+                    payload: room
+                });
+            } else {
+                // Clear the interval when countdown reaches zero
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+    }
 
     // Start a new countdown timer for the round transition
     let roundDuration;
@@ -82,68 +87,51 @@ function startTranslationCountdown(roomId) {
     } else if (room.room.round === 'answer') {
         roundDuration = ANSWER_COUNTDOWN;
     } else {
-        roundDuration = TRANSLATION_COUNTDOWN;
+        // For translation round, we don't need a timer as it will end after AI response
+        return; // Exit early, no need for a timer
     }
 
     room.translationTimer = setTimeout(async () => {
-        // If we're in translation round, move to question round
-        if (room.room.round === 'translation') {
-            // Increment cycle count when moving from translation to question
-            room.room.cycleCount++;
-            
-            // Check if we've reached the maximum number of cycles (10)
-            if (room.room.cycleCount >= 1) {
-                // End the game
-                room.room.status = 'completed';
-                
-                // The passenger reveal will now happen after the captain makes their decision
-                // instead of automatically at the end of the game
-                
-                // Send a game over message without the reveal
-                const gameOverMsg = JSON.stringify({
-                    type: 'CHAT_MESSAGE',
-                    payload: {
-                        roomKey: roomId,
-                        sender: "System",
-                        text: "<b>Game Over!</b> The maximum number of rounds has been reached. The captain must now decide which pod(s) to leave behind.",
-                        timestamp: Date.now(),
-                        isPrivate: false
-                    }
-                });
-                
-                // Broadcast to all clients in the room
-                for (const [clientId, clientData] of Object.entries(clients)) {
-                    if (clientData.room === roomId) {
-                        try {
-                            clientData.socket.send(gameOverMsg);
-                        } catch (error) {
-                            console.error('[WebSocket] Failed to send game over message:', error);
-                        }
-                    }
-                }
-                
-                // Broadcast final game state
-                broadcastToRoom(roomId, {
-                    type: 'GAME_STATE',
-                    payload: room
-                });
-                
-                return;
-            }
-            
-            room.room.round = 'question';
-            room.room.countdown = QUESTION_COUNTDOWN / 1000;
-            broadcastToRoom(roomId, {
-                type: 'GAME_STATE',
-                payload: room
-            });
-            // Start next countdown
-            startTranslationCountdown(roomId);
-            return;
+        // Clear the countdown interval if it exists
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
         }
 
         // If we're in question round, move to answer round
         if (room.room.round === 'question') {
+            // Check if captain sent a question
+            const hostNickname = Object.keys(room.room.players)[0];
+            const captainQuestion = room.pendingMessages[hostNickname];
+
+            if (!captainQuestion) {
+                // Send system message about captain's pod being unreachable
+                const systemMessage = JSON.stringify({
+                    type: 'CHAT_MESSAGE',
+                    payload: {
+                        roomKey: roomId,
+                        sender: "System",
+                        text: "*static* Captain's pod communication systems are not reachable at this moment. While we attempt to restore connection, please share: What were you doing before the catastrophe started?",
+                        timestamp: Date.now(),
+                        isPrivate: false
+                    }
+                });
+
+                // Broadcast the system message
+                for (const [clientId, clientData] of Object.entries(clients)) {
+                    if (clientData.room === roomId) {
+                        try {
+                            clientData.socket.send(systemMessage);
+                        } catch (error) {
+                            console.error('[WebSocket] Failed to send system message to client:', error);
+                            removeClientFromRoom(clientData.socket, roomId);
+                        }
+                    }
+                }
+
+                // Store the default question in pendingMessages for the host
+                room.pendingMessages[hostNickname] = "What were you doing before the catastrophe started?";
+            }
+
             room.room.round = 'answer';
             room.room.countdown = ANSWER_COUNTDOWN / 1000;
             broadcastToRoom(roomId, {
@@ -155,8 +143,17 @@ function startTranslationCountdown(roomId) {
             return;
         }
 
-        // If we're in answer round, process messages and move to translation
+        // If we're in answer round, immediately transition to translation round
         if (room.room.round === 'answer') {
+            // First transition to translation round to show loading state
+            room.room.round = 'translation';
+            room.room.countdown = null; // No countdown for translation round
+            broadcastToRoom(roomId, {
+                type: 'GAME_STATE',
+                payload: room
+            });
+            
+            // Then process messages
             await processPendingMessages(roomId);
         }
     }, roundDuration);
@@ -166,10 +163,13 @@ function startTranslationCountdown(roomId) {
 async function processPendingMessages(roomId) {
     const room = rooms[roomId];
     if (!room) return;
-    if (room.room.round !== 'answer') {
+    if (room.room.round !== 'translation') {
+        console.log('[WebSocket] processPendingMessages called but not in translation round:', room.room.round);
         return;
     }
 
+    console.log('[WebSocket] Processing messages for room:', roomId);
+    
     try {
         // Get the passenger mapping (created when the game started)
         const passengerMapping = room.passengerMapping || {};
@@ -234,20 +234,57 @@ async function processPendingMessages(roomId) {
         });
 
         const extendedMessage = {
-            instruction: `Perform the following tasks:
-1. Rephrase ALL real player messages with standard language, maintaining their meaning but changing the wording.
-2. For positions where NO_MESSAGE_SENT is indicated, randomly do one of the following with equal probability (50/50):
-   a. Generate a relevant response based on the captain's question: "${captainQuestion}"
-   b. Generate static noise or garbled communication (like "*static* ...can't...hear..." or "*interference* ...system...malfunction...")
-3. For empty passenger positions (${emptyPositions.join(', ')}), generate completely new responses.
+            instruction: `You are assisting with a multiplayer game where players are passengers on a spaceship. The captain asks questions to identify which passengers are AI. Follow these instructions EXACTLY:
 
-The output must be valid JSON formatted as:
-{ "players": [ { "player": "Passenger 1", "message": "..." }, { "player": "Passenger 2", "message": "..." }, { "player": "Passenger 3", "message": "..." }, { "player": "Passenger 4", "message": "..." } ] }
-`,
+TASK 1 - REPHRASE REAL PLAYER MESSAGES:
+- Take each real player message and rephrase it completely while keeping the same meaning
+- You MUST change the wording - never output the original message
+- Keep the tone and intent but use different language
+
+TASK 2 - HANDLE NO_MESSAGE_SENT:
+For any position marked as NO_MESSAGE_SENT:
+- 95% chance: Generate a natural response to the captain's question: "${captainQuestion}"
+- 5% chance: Output communication interference like "*static* ...signal lost..." or "*interference* ...malfunction..."
+
+TASK 3 - FILL EMPTY POSITIONS:
+For empty passenger positions (${emptyPositions.join(', ')}):
+- 95% chance: Generate a new response that:
+  • Directly answers the captain's question: "${captainQuestion}"
+  • Uses natural, conversational language
+  • Shows unique personality traits
+  • May include minor typos or informal language
+  • Avoids being too perfect or robotic
+  • Does NOT reference other passenger responses
+- 5% chance: Output communication interference like "*static* ...signal lost..." or "*interference* ...malfunction..."
+
+CRITICAL REQUIREMENTS:
+1. Each response must be unique in style and personality
+2. All responses must specifically address the captain's question
+3. Vary response length and complexity
+4. Include natural language elements like:
+   - Casual speech patterns
+   - Occasional typos
+   - Hesitations (um, uh, well...)
+   - Emotional reactions
+5. Never have passengers reference each other's responses
+
+OUTPUT FORMAT:
+Return valid JSON exactly like this:
+{
+  "players": [
+    {"player": "Passenger 1", "message": "..."},
+    {"player": "Passenger 2", "message": "..."},
+    {"player": "Passenger 3", "message": "..."},
+    {"player": "Passenger 4", "message": "..."}
+  ]
+}`,
             players: playersMessagesWithPositions,
             emptyPositions: emptyPositions,
-            captainQuestion: captainQuestion
+            captainQuestion: captainQuestion,
+            realPlayerMessages: playersMessagesWithPositions.map(p => p.message)
         };
+
+        // We're already in the translation round, so no need to transition again
 
         const aiResponse = await generateAIResponse(JSON.stringify(extendedMessage));
         
@@ -310,32 +347,149 @@ The output must be valid JSON formatted as:
                         }
                     }
                 }
+                
+                // Immediately move to the next question round after sending the AI response
+                // No need to wait for the translation countdown
+                if (room.translationTimer) {
+                    clearTimeout(room.translationTimer);
+                    room.translationTimer = null;
+                }
+                
+                // Increment cycle count when moving from translation to question
+                room.room.cycleCount++;
+                
+                // Check if we've reached the maximum number of cycles
+                if (room.room.cycleCount >= 10) {
+                    // End the game
+                    room.room.status = 'completed';
+                    
+                    // Send a game over message without the reveal
+                    const gameOverMsg = JSON.stringify({
+                        type: 'CHAT_MESSAGE',
+                        payload: {
+                            roomKey: roomId,
+                            sender: "System",
+                            text: "<b>Game Over!</b> The maximum number of rounds has been reached. The captain must now decide which pod(s) to leave behind.",
+                            timestamp: Date.now(),
+                            isPrivate: false
+                        }
+                    });
+                    
+                    // Broadcast to all clients in the room
+                    for (const [clientId, clientData] of Object.entries(clients)) {
+                        if (clientData.room === roomId) {
+                            try {
+                                clientData.socket.send(gameOverMsg);
+                            } catch (error) {
+                                console.error('[WebSocket] Failed to send game over message:', error);
+                            }
+                        }
+                    }
+                    
+                    // Broadcast final game state
+                    broadcastToRoom(roomId, {
+                        type: 'GAME_STATE',
+                        payload: room
+                    });
+                } else {
+                    // Move to the next question round
+                    room.room.round = 'question';
+                    room.room.countdown = QUESTION_COUNTDOWN / 1000;
+                    
+                    // Reset hasSentMessage flag for all players
+                    Object.values(room.room.players).forEach(player => {
+                        player.hasSentMessage = false;
+                    });
+                    
+                    // Clear pending messages
+                    room.pendingMessages = {};
+                    
+                    // Broadcast updated game state
+                    broadcastToRoom(roomId, {
+                        type: 'GAME_STATE',
+                        payload: room
+                    });
+                    
+                    // Start the countdown for the next question round
+                    startTranslationCountdown(roomId);
+                }
             } catch (innerError) {
                 console.error('[WebSocket] Error parsing AI response:', innerError);
+                // If there's an error, still move to the next round
+                moveToNextRound(roomId);
             }
+        } else {
+            console.error('[WebSocket] No AI response received');
+            // If there's no AI response, still move to the next round
+            moveToNextRound(roomId);
         }
     } catch (error) {
         console.error('[WebSocket] Error processing messages:', error);
-    } finally {
-        // Clear pending messages
-        room.pendingMessages = {};
+        // If there's an error, still move to the next round
+        moveToNextRound(roomId);
+    }
+}
 
-        // Reset hasSentMessage flag for all players
-        Object.values(room.room.players).forEach(player => {
-            player.hasSentMessage = false;
+// Helper function to move to the next round after the answer round
+function moveToNextRound(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+    
+    // Clear pending messages
+    room.pendingMessages = {};
+
+    // Reset hasSentMessage flag for all players
+    Object.values(room.room.players).forEach(player => {
+        player.hasSentMessage = false;
+    });
+
+    // We don't need to increment the cycle count here as it's already done in processPendingMessages
+    
+    // Check if we've reached the maximum number of cycles
+    if (room.room.cycleCount >= 10) {
+        // End the game
+        room.room.status = 'completed';
+        
+        // Send a game over message
+        const gameOverMsg = JSON.stringify({
+            type: 'CHAT_MESSAGE',
+            payload: {
+                roomKey: roomId,
+                sender: "System",
+                text: "<b>Game Over!</b> The maximum number of rounds has been reached. The captain must now decide which pod(s) to leave behind.",
+                timestamp: Date.now(),
+                isPrivate: false
+            }
         });
-
-        // If still in answer round, transition to translation
-        if (room.room.round === 'answer') {
-            room.room.round = 'translation';
-            room.room.countdown = TRANSLATION_COUNTDOWN / 1000;
-            broadcastToRoom(roomId, {
-                type: 'GAME_STATE',
-                payload: room
-            });
+        
+        // Broadcast to all clients in the room
+        for (const [clientId, clientData] of Object.entries(clients)) {
+            if (clientData.room === roomId) {
+                try {
+                    clientData.socket.send(gameOverMsg);
+                } catch (error) {
+                    console.error('[WebSocket] Failed to send game over message:', error);
+                }
+            }
         }
-
-        // Restart the countdown for the next round
+        
+        // Broadcast final game state
+        broadcastToRoom(roomId, {
+            type: 'GAME_STATE',
+            payload: room
+        });
+    } else {
+        // Skip the translation round and move directly to the next question round
+        room.room.round = 'question';
+        room.room.countdown = QUESTION_COUNTDOWN / 1000;
+        
+        // Broadcast updated game state
+        broadcastToRoom(roomId, {
+            type: 'GAME_STATE',
+            payload: room
+        });
+        
+        // Start the countdown for the next question round
         startTranslationCountdown(roomId);
     }
 }
@@ -720,7 +874,7 @@ export default defineWebSocketHandler({
                         payload: {
                             roomKey: roomId,
                             sender: "System",
-                            text: "The game has commenced. Captain will ask questions to determine which pod holds the android. Don't get left behind.",
+                            text: "The game has commenced. Captain will ask questions to determine which pods hold androids. Don't get left behind.",
                             timestamp: Date.now(),
                             isPrivate: false
                         }

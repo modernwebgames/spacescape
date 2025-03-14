@@ -16,12 +16,20 @@
           <b> {{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round </b>
           <span>• Cycle {{ gameState.room.cycleCount + 1 }}/10</span>
         </div>
-        <div class="w-full mt-2 bg-gray-700 rounded-full h-2.5">
+        <div v-if="gameState.room.round !== 'translation'" class="w-full mt-2 bg-gray-700 rounded-full h-2.5">
           <div class="bg-green-500 h-2.5 rounded-full transition-all duration-1000 ease-linear" 
                :style="{ width: timerProgressPercentage + '%' }"></div>
         </div>
+        <div v-else class="w-full mt-2 flex justify-center">
+          <div class="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
         <div class="text-sm mt-1 w-full text-right">
-          {{ formatCountdown(clientCountdown) }}
+          <span v-if="gameState.room.round !== 'translation'">{{ formatCountdown(clientCountdown) }}</span>
+          <span v-else>Translating passenger communications...</span>
         </div>
       </div>
     </div>
@@ -245,6 +253,11 @@ const startClientTimer = () => {
     clearInterval(timerInterval.value);
   }
   
+  // Don't start a timer for translation round
+  if (gameState.value.room.round === 'translation') {
+    return;
+  }
+  
   // Set up a new timer that updates every second
   timerInterval.value = setInterval(() => {
     if (clientCountdown.value > 0) {
@@ -346,6 +359,14 @@ function onStartGame() {
 watch([() => gameState.value.room.countdown, () => gameState.value.room.round], ([newCountdown, newRound], [oldCountdown, oldRound]) => {
   // If round changed or this is the first update
   if (newRound !== oldRound || lastCountdownValue.value === null) {
+    // For translation round, don't set up a timer
+    if (newRound === 'translation') {
+      if (timerInterval.value) {
+        clearInterval(timerInterval.value);
+      }
+      return;
+    }
+    
     // Set the maximum countdown value based on the round type
     const maxCountdown = ROUND_DURATIONS[newRound] || newCountdown;
     lastCountdownValue.value = maxCountdown;
@@ -354,7 +375,7 @@ watch([() => gameState.value.room.countdown, () => gameState.value.room.round], 
     
     // Start the client-side timer
     startClientTimer();
-  } else if (newCountdown !== oldCountdown) {
+  } else if (newCountdown !== oldCountdown && newRound !== 'translation') {
     // Sync with server countdown if there's a discrepancy
     clientCountdown.value = newCountdown;
     timerProgress.value = (newCountdown / lastCountdownValue.value) * 100;
@@ -463,6 +484,42 @@ async function copyRoomKey() {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Loading dots animation */
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 10px;
+}
+
+.loading-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  background-color: #4ade80;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: loading-dots 1.4s infinite ease-in-out both;
+}
+
+.loading-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes loading-dots {
+  0%, 80%, 100% { 
+    transform: scale(0);
+  }
+  40% { 
+    transform: scale(1);
   }
 }
 </style>

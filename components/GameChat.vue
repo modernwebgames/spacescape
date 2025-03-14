@@ -15,11 +15,11 @@
             <br><br>The ship's reactor has failed. In <b><i>10 minutes</i></b>, it will explode. Through flames and chaos, you manage to reach an escape pod. As you strap in, the pod's communication system crackles to life. This system, though rather primitive, can translate 8594 languages from 72 galaxies.
 
             <br><br>The captain's voice echoes through the pod speakers:
-            <i>"We don't have enough fuel. One pod must be left behind."</i>
+            <i>"We don't have enough fuel. Some pods must be left behind."</i>
 
-            <br><br>But there's more—an android has boarded one of the pods, disguising itself as a passenger. The captain will abandon that pod… if he can figure out which one it is.
+            <br><br>But there's more—androids have also boarded the pods, disguising as passengers. The captain will leave those pods behind to rescue the human passengers… if he can figure out who is who.
 
-            <br><br>You must convince the captain which pod holds the android—before time runs out...
+            <br><br>You must convince the captain to pick your pod for launch—before time runs out...
           </p>
         </div>
 

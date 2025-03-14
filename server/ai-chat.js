@@ -12,7 +12,7 @@ export async function generateAIResponse(message) {
             messages: [
                 { 
                     "role": "system", 
-                    "content": "You are a rephrasing system. Take the input and re-write it with a more standard language. Make the input sound like it is written by AI. Return the response in the input JSON format."
+                    "content": "Game context: You are assisting with a game called 'Spacescape' where players are passengers on a spaceship with a failing reactor. The captain (human player) is trying to identify which passengers are AI and which are real humans. Some passengers are real human players, while others are AI-generated. The captain asks questions to try to determine who is human and who is AI. AI players will be left behind in the spaceship."
                 },
                 { 
                     "role": "user", 
