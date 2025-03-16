@@ -23,8 +23,8 @@
               leave-from="opacity-100 scale-100"
               leave-to="opacity-0 scale-95"
           >
-            <DialogPanel class="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 shadow-xl transition-all">
-              <DialogTitle as="h3" class="text-lg font-medium leading-6 text-gray-900">
+            <DialogPanel class="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-900 border border-blue-500 p-6 shadow-xl transition-all">
+              <DialogTitle as="h3" class="text-lg font-medium leading-6 text-green-400">
                 Choose Your Nickname
               </DialogTitle>
 
@@ -32,7 +32,7 @@
                 <input
                     v-model="nickname"
                     type="text"
-                    class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    class="w-full px-4 py-2 border rounded-md bg-gray-800 text-blue-400 border-blue-800 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     :class="{ 'border-red-500': error }"
                     placeholder="Enter nickname..."
                     maxlength="15"
@@ -44,13 +44,13 @@
               <div class="mt-4 flex gap-2">
                 <button
                     @click="save"
-                    class="flex-1 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    class="flex-1 py-2 bg-blue-900 text-green-400 rounded hover:bg-blue-800 transition-colors border border-blue-500"
                 >
                   Save
                 </button>
                 <button
                     @click="close"
-                    class="flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                    class="flex-1 py-2 bg-gray-800 text-blue-400 rounded hover:bg-gray-700 transition-colors border border-gray-700"
                 >
                   Cancel
                 </button>
@@ -65,7 +65,7 @@
 
 <script setup>
 import { Dialog, DialogPanel, DialogTitle, TransitionRoot, TransitionChild } from '@headlessui/vue';
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 
 const props = defineProps({
   isOpen: {

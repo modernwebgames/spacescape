@@ -8,12 +8,12 @@
 
     <!-- Translation Countdown Timer -->
     <div v-if="gameState.room.status === 'playing'" 
-         class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
+         class="fixed top-4 left-1/2 transform -translate-x-1/2 z-40 
                 bg-blue-900/90 text-green-400 px-6 py-2 rounded-lg shadow-lg 
-                border border-blue-500">
+                border border-blue-500 max-w-[90%] sm:max-w-md">
       <div class="flex flex-col items-center">
-        <div class="flex items-center justify-between w-full">
-          <b> {{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round </b>
+        <div class="flex items-center justify-center w-full space-x-2">
+          <b>{{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round</b>
           <span>• Cycle {{ gameState.room.cycleCount + 1 }}/10</span>
         </div>
         <div v-if="gameState.room.round !== 'translation'" class="w-full mt-2 bg-gray-700 rounded-full h-2.5">
@@ -36,25 +36,25 @@
 
     <!-- Game Completed Banner -->
     <div v-if="gameState.room.status === 'completed'" 
-         class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
+         class="fixed top-4 left-1/2 transform -translate-x-1/2 z-40 
                 bg-red-900/90 text-yellow-400 px-6 py-2 rounded-lg shadow-lg 
-                border border-red-500">
+                border border-red-500 max-w-[90%] sm:max-w-md">
       <b>Game Over!</b> The captain must now decide which pod(s) to leave behind.
     </div>
 
     <!-- Game Over Modal for Captain -->
     <div v-if="gameState.room.status === 'completed' && isHost(playerNickname) && !captainDecisionMade" 
          class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div class="bg-gray-900 border border-red-500 rounded-lg p-6 max-w-2xl w-full mx-4">
-        <h2 class="text-2xl text-red-400 font-bold mb-4">Captain's Final Decision</h2>
-        <p class="text-blue-300 mb-6">
+      <div class="bg-gray-900 border border-red-500 rounded-lg p-4 sm:p-6 max-w-2xl w-[95%] mx-2 sm:mx-4">
+        <h2 class="text-xl sm:text-2xl text-red-400 font-bold mb-4">Captain's Final Decision</h2>
+        <p class="text-blue-300 mb-4 sm:mb-6 text-sm sm:text-base">
           The reactor is about to explode. You must decide which passenger pod(s) to leave behind.
           <br><br>
           <b>Select {{ getFakePassengerCount() }} passenger(s) to leave behind:</b>
         </p>
         
-        <div class="space-y-3 mb-6">
-          <div v-for="i in 4" :key="i" class="flex items-center space-x-3 p-3 border border-blue-800 rounded-lg bg-gray-800/50">
+        <div class="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+          <div v-for="i in 4" :key="i" class="flex items-center space-x-3 p-2 sm:p-3 border border-blue-800 rounded-lg bg-gray-800/50">
             <input 
               type="checkbox" 
               :id="'passenger-' + i" 
@@ -72,7 +72,7 @@
           <button 
             @click="submitCaptainDecision" 
             :disabled="selectedPassengerCount !== getFakePassengerCount()"
-            class="px-6 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-4 sm:px-6 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Confirm Decision
           </button>
@@ -80,17 +80,17 @@
       </div>
     </div>
 
-    <!-- Main game content with padding for lobby -->
-    <div class="p-8 pr-72">
+    <!-- Main game content with responsive padding -->
+    <div class="p-4 sm:p-6 md:p-8" :class="{'lg:pr-72': !isMobile || (isMobile && sidebarOpen)}">
       <div class="max-w-4xl mx-auto">
         <!-- Header with room info -->
-        <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold">
-            <img src="/spacescape.png" alt="Spacescape Logo" class="h-10" />
+        <div class="flex justify-between items-center mb-4 sm:mb-8">
+          <h1 class="text-2xl sm:text-3xl font-bold">
+            <img src="/spacescape.png" alt="Spacescape Logo" class="h-8 sm:h-10" />
           </h1>
           
-          <div class="flex items-center gap-4">            
-            <div class="text-blue-400 relative z-10">
+          <div class="flex items-center gap-2 sm:gap-4">            
+            <div class="text-blue-400 relative z-10 text-sm sm:text-base">
               Room: 
               <span class="font-semibold text-green-400 select-all bg-gray-900/50 px-2 py-1 rounded cursor-pointer" 
                     @click="copyRoomKey" 
@@ -98,12 +98,23 @@
                 {{ roomKey }}
               </span>
             </div>
+            
+            <!-- Mobile Sidebar Toggle Button -->
+            <button 
+              @click="toggleSidebar" 
+              class="lg:hidden bg-blue-900/90 text-green-400 p-2 rounded-lg shadow-lg border border-blue-500 ml-2 relative z-20"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path v-if="sidebarOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
           </div>
         </div>
 
         <!-- Chat Panel -->
         <div class="flex justify-between items-center">
-          <div class="p-4 w-full">
+          <div class="p-2 sm:p-4 w-full">
             <!-- Chat Component -->
             <GameChat 
               :player-nickname="playerNickname"
@@ -118,17 +129,40 @@
       </div>
     </div>
 
-    <!-- Fixed Lobby Sidebar -->
-    <div class="fixed top-0 right-0 h-screen w-64 bg-gray-900 shadow-lg z-20 border-l border-blue-900">
-      <div class="p-4 space-y-4">
-        <!-- Room Status -->
-        <div class="text-center pb-4 border-b border-blue-800">
-          <div class="text-blue-400">
-            Playing as: <span class="font-semibold text-green-400">{{ playerNickname }}</span>
+    <!-- Fixed Lobby Sidebar - Responsive -->
+    <div 
+      class="fixed top-0 right-0 h-screen bg-gray-900 shadow-lg z-30 border-l border-blue-900 transition-all duration-300 ease-in-out"
+      :class="{
+        'w-64': !isMobile || (isMobile && sidebarOpen),
+        'w-0 border-l-0': isMobile && !sidebarOpen,
+        'translate-x-0': !isMobile || (isMobile && sidebarOpen),
+        'translate-x-full': isMobile && !sidebarOpen
+      }"
+    >
+      <div class="p-4 space-y-4 w-64">
+        <!-- Room Status with integrated close button -->
+        <div class="pb-4 border-b border-blue-800 relative">
+          <div class="flex justify-between items-center">
+            <div class="text-left">
+              <div class="text-blue-400">
+                Playing as: <span class="font-semibold text-green-400">{{ playerNickname }}</span>
+              </div>
+              <p class="text-sm mt-2" :class="gameState.room.status === 'waiting' ? 'text-yellow-500' : 'text-green-500'">
+                {{ gameState.room.status === 'waiting' ? 'Waiting for players...' : 'Game in progress' }}
+              </p>
+            </div>
+            
+            <!-- Close button for mobile - integrated into header -->
+            <button 
+              v-if="isMobile && sidebarOpen"
+              @click="toggleSidebar" 
+              class="lg:hidden bg-blue-900/90 text-red-400 p-2 rounded-lg shadow-lg border border-blue-500"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <p class="text-sm mt-2" :class="gameState.room.status === 'waiting' ? 'text-yellow-500' : 'text-green-500'">
-            {{ gameState.room.status === 'waiting' ? 'Waiting for players...' : 'Game in progress' }}
-          </p>
         </div>
 
         <!-- Player List -->
@@ -226,6 +260,20 @@ const clientCountdown = ref(null);
 const timerProgress = ref(100);
 const timerProgressPercentage = computed(() => timerProgress.value);
 const timerInterval = ref(null);
+
+// Mobile responsiveness
+const isMobile = ref(false);
+const sidebarOpen = ref(false);
+
+// Check if device is mobile
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 1024; // lg breakpoint in Tailwind
+};
+
+// Toggle sidebar visibility on mobile
+const toggleSidebar = () => {
+  sidebarOpen.value = !sidebarOpen.value;
+};
 
 // Round durations in seconds (matching server constants)
 const ROUND_DURATIONS = {
@@ -382,9 +430,26 @@ watch([() => gameState.value.room.countdown, () => gameState.value.room.round], 
   }
 });
 
-// Generate star background
+// Generate star background and set up responsive behavior
 onMounted(() => {
+  // Create initial starfield
   createStarfield();
+  
+  // Check if device is mobile
+  checkMobile();
+  
+  // Add resize event listener
+  window.addEventListener('resize', checkMobile);
+  
+  // Add resize handler for starfield recreation
+  let resizeTimeout;
+  const handleResize = () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      createStarfield();
+    }, 300);
+  };
+  window.addEventListener('resize', handleResize);
 });
 
 // Clean up interval when component is unmounted
@@ -392,6 +457,12 @@ onUnmounted(() => {
   if (timerInterval.value) {
     clearInterval(timerInterval.value);
   }
+  
+  // Remove resize event listeners
+  window.removeEventListener('resize', checkMobile);
+  
+  // Remove starfield resize handler
+  window.removeEventListener('resize', handleResize);
 });
 
 // Function to create a rotating starfield
@@ -402,20 +473,30 @@ function createStarfield() {
   // Clear any existing stars
   starfield.innerHTML = '';
   
-  // Create stars
-  const starCount = 1200; 
+  // Create stars - increased count for better coverage
+  const starCount = 8000; 
   const colors = ['#ffffff', '#fffafa', '#f8f8ff', '#e6e6fa', '#b0e0e6', '#87cefa', '#add8e6'];
+  
+  // Calculate the diagonal length of the screen to ensure full coverage during rotation
+  const screenDiagonal = Math.sqrt(Math.pow(window.innerWidth, 2) + Math.pow(window.innerHeight, 2));
+  // Use a multiplier to ensure we have enough coverage (3x the diagonal)
+  const coverageArea = screenDiagonal * 3;
   
   for (let i = 0; i < starCount; i++) {
     const star = document.createElement('div');
     star.className = 'star';
     
-    // Random position - ensure stars are scattered across the entire screen
-    const x = Math.random() * window.innerWidth * 2;
-    const y = Math.random() * window.innerHeight * 2;
+    // Random position - ensure stars are scattered across a much larger area
+    // Use a circular distribution to ensure better coverage during rotation
+    const angle = Math.random() * Math.PI * 2; // Random angle in radians
+    const distance = Math.random() * coverageArea; // Random distance from center
     
-    // Random size (0.5px to 3px)
-    const size = 0.5 + Math.random() * 2.5;
+    // Convert polar coordinates to cartesian
+    const x = (window.innerWidth / 2) + Math.cos(angle) * distance;
+    const y = (window.innerHeight / 2) + Math.sin(angle) * distance;
+    
+    // Random size (0.5px to 5px)
+    const size = 0.5 + Math.random() * 4.5;
     
     // Random color
     const color = colors[Math.floor(Math.random() * colors.length)];
@@ -455,6 +536,17 @@ async function copyRoomKey() {
     }, 2000);
   }
 }
+
+// Resize handler function
+const handleResize = () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    createStarfield();
+  }, 300);
+};
+
+// Resize timeout reference
+let resizeTimeout;
 </script>
 
 <style scoped>
@@ -462,10 +554,13 @@ async function copyRoomKey() {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 300%;
+  height: 300%;
   z-index: 0;
   overflow: hidden;
+  transform: translate(-50%, -50%);
+  left: 50%;
+  top: 50%;
 }
 
 .starfield {
@@ -474,7 +569,7 @@ async function copyRoomKey() {
   left: 0;
   width: 100%;
   height: 100%;
-  animation: rotate 240s linear infinite;
+  animation: rotate 450s linear infinite;
   transform-origin: center center;
 }
 
@@ -520,6 +615,14 @@ async function copyRoomKey() {
   }
   40% { 
     transform: scale(1);
+  }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 1023px) {
+  .starfield-container {
+    width: 400%;
+    height: 400%;
   }
 }
 </style>

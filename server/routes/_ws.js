@@ -1,11 +1,12 @@
 // server/routes/_ws.js
 import { generateAIResponse } from '../ai-chat.js';
 
-const rooms = {} // Store our rooms
+const rooms = {} // Store rooms
 const clients = {}  // Store client -> room mapping
 const clientIds = new WeakMap(); // Store client IDs
 const QUESTION_COUNTDOWN = 20000; // 20 seconds
 const ANSWER_COUNTDOWN = 30000; // 30 seconds
+const MAX_PLAYERS_PER_ROOM = 5; // Maximum number of players allowed in a room (including captain)
 
 function generateClientId() {
     return Math.random().toString(36).substring(7);
@@ -99,10 +100,17 @@ function startTranslationCountdown(roomId) {
 
         // If we're in question round, move to answer round
         if (room.room.round === 'question') {
-            // Check if captain sent a question
+            // Get the most recent captain's question if available
             const hostNickname = Object.keys(room.room.players)[0];
             const captainQuestion = room.pendingMessages[hostNickname];
+            
+            console.log(`[WebSocket] Checking captain's question for room ${roomId}:`, {
+                hostNickname,
+                captainQuestion,
+                pendingMessages: room.pendingMessages
+            });
 
+            // If captain didn't send a question, send system message
             if (!captainQuestion) {
                 // Send system message about captain's pod being unreachable
                 const systemMessage = JSON.stringify({
@@ -131,7 +139,7 @@ function startTranslationCountdown(roomId) {
                 // Store the default question in pendingMessages for the host
                 room.pendingMessages[hostNickname] = "What were you doing before the catastrophe started?";
             }
-
+            
             room.room.round = 'answer';
             room.room.countdown = ANSWER_COUNTDOWN / 1000;
             broadcastToRoom(roomId, {
@@ -174,114 +182,88 @@ async function processPendingMessages(roomId) {
         // Get the passenger mapping (created when the game started)
         const passengerMapping = room.passengerMapping || {};
         
-        // Create an array to hold all passenger messages (real and AI)
-        const allPassengerMessages = [null, null, null, null]; // Initialize with nulls for all 4 passengers
-        
-        // Format messages for all players, excluding host
-        const nonHostPlayers = Object.entries(room.room.players)
-            .filter(([nickname, _]) => nickname !== Object.keys(room.room.players)[0]);
-        
-        // Place real player messages in their assigned positions
-        nonHostPlayers.forEach(([nickname, player]) => {
-            const passengerNumber = passengerMapping[nickname];
-            if (passengerNumber && passengerNumber >= 1 && passengerNumber <= 4) {
-                allPassengerMessages[passengerNumber - 1] = {
-                    clientID: player.clientId,
-                    message: room.pendingMessages[nickname] || "NO_MESSAGE_SENT",
+        // Collect player messages for all positions (1-4)
+        const allPassengerMessages = [];
+        const playersMessagesWithPositions = [];
+        const emptyPositions = [];
+
+        // Fill in player messages based on the mapping
+        Object.entries(passengerMapping).forEach(([playerNickname, position]) => {
+            const message = room.pendingMessages[playerNickname] || "NO_MESSAGE_SENT";
+            
+            // Store for reference
+            if (position >= 1 && position <= 4) {
+                playersMessagesWithPositions.push({
+                    player: `Passenger ${position}`,
+                    message: message,
+                    isRealPlayer: true,
+                    originalNickname: playerNickname
+                });
+                
+                // Initialize the allPassengerMessages array at this position
+                allPassengerMessages[position - 1] = {
+                    message: message,
                     isReal: true,
-                    passengerNumber: passengerNumber
+                    passengerNumber: position,
+                    originalNickname: playerNickname
                 };
             }
         });
-        
-        // Count how many real player messages we have
-        const realMessageCount = allPassengerMessages.filter(msg => msg !== null).length;
-        const fakeCount = 4 - realMessageCount;
-        
-        // Identify which positions need AI-generated messages
-        const emptyPositions = [];
-        allPassengerMessages.forEach((msg, index) => {
-            if (msg === null) {
-                emptyPositions.push(index + 1); // Passenger numbers are 1-indexed
-            }
-        });
-        
-        // Get the most recent captain's question if available
-        let captainQuestion = "";
-        const hostNickname = Object.keys(room.room.players)[0];
-        const recentMessages = [...Object.entries(room.pendingMessages)];
-        for (let i = recentMessages.length - 1; i >= 0; i--) {
-            if (recentMessages[i][0] === hostNickname) {
-                captainQuestion = recentMessages[i][1];
-                break;
+
+        // Fill empty positions (1-4) not taken by real players
+        for (let i = 1; i <= 4; i++) {
+            if (!allPassengerMessages[i - 1]) {
+                emptyPositions.push(i);
+                
+                // Add placeholder for empty position
+                playersMessagesWithPositions.push({
+                    player: `Passenger ${i}`,
+                    message: null,
+                    isRealPlayer: false
+                });
+                
+                // Mark this position as needing an AI-generated message
+                allPassengerMessages[i - 1] = null;
             }
         }
 
-        // Format real player messages for AI processing with their assigned passenger numbers
-        const playersMessagesWithPositions = [];
-        nonHostPlayers.forEach(([nickname, player]) => {
-            const passengerNumber = passengerMapping[nickname];
-            const message = room.pendingMessages[nickname];
-            
-            if (passengerNumber) {
-                playersMessagesWithPositions.push({
-                    passengerNumber: passengerNumber,
-                    clientID: player.clientId,
-                    message: message || "NO_MESSAGE_SENT",
-                    isReal: true
-                });
-            }
-        });
-
+        // Prepare the extended message for AI processing
+        const captainQuestion = room.pendingMessages[Object.keys(room.room.players)[0]] || "What were you doing before the catastrophe started?";
         const extendedMessage = {
-            instruction: `You are assisting with a multiplayer game where players are passengers on a spaceship. The captain asks questions to identify which passengers are AI. Follow these instructions EXACTLY:
-
-TASK 1 - REPHRASE REAL PLAYER MESSAGES:
-- Take each real player message and rephrase it completely while keeping the same meaning
-- You MUST change the wording - never output the original message
-- Keep the tone and intent but use different language
-
-TASK 2 - HANDLE NO_MESSAGE_SENT:
-For any position marked as NO_MESSAGE_SENT:
-- 95% chance: Generate a natural response to the captain's question: "${captainQuestion}"
-- 5% chance: Output communication interference like "*static* ...signal lost..." or "*interference* ...malfunction..."
-
-TASK 3 - FILL EMPTY POSITIONS:
-For empty passenger positions (${emptyPositions.join(', ')}):
-- 95% chance: Generate a new response that:
-  • Directly answers the captain's question: "${captainQuestion}"
-  • Uses natural, conversational language
-  • Shows unique personality traits
-  • May include minor typos or informal language
-  • Avoids being too perfect or robotic
-  • Does NOT reference other passenger responses
-- 5% chance: Output communication interference like "*static* ...signal lost..." or "*interference* ...malfunction..."
-
-CRITICAL REQUIREMENTS:
-1. Each response must be unique in style and personality
-2. All responses must specifically address the captain's question
-3. Vary response length and complexity
-4. Include natural language elements like:
-   - Casual speech patterns
-   - Occasional typos
-   - Hesitations (um, uh, well...)
-   - Emotional reactions
-5. Never have passengers reference each other's responses
-
-OUTPUT FORMAT:
-Return valid JSON exactly like this:
-{
-  "players": [
-    {"player": "Passenger 1", "message": "..."},
-    {"player": "Passenger 2", "message": "..."},
-    {"player": "Passenger 3", "message": "..."},
-    {"player": "Passenger 4", "message": "..."}
-  ]
-}`,
             players: playersMessagesWithPositions,
             emptyPositions: emptyPositions,
             captainQuestion: captainQuestion,
-            realPlayerMessages: playersMessagesWithPositions.map(p => p.message)
+            realPlayerMessages: Object.values(room.pendingMessages)
+                .filter(msg => msg && msg !== "NO_MESSAGE_SENT"),
+            instruction: `You are assisting with a multiplayer game where players are passengers on a spaceship. The captain asks questions to identify which passengers are AI androids. Follow these instructions EXACTLY:
+
+TASK 1 - REPHRASE REAL PLAYER MESSAGES (HIGHEST PRIORITY TASK):
+- Take each real player message (marked isRealPlayer:true) and rephrase it completely
+- CRITICAL: You MUST preserve the EXACT same meaning, context, specific details, and emotional tone
+- For example, if someone says "I was brushing my teeth", your rephrasing MUST still mention "teeth" and "brushing"
+- You MUST change the structure and wording significantly - NEVER use the original message verbatim
+- Your rephrasing should sound natural as if the original player rewrote their own message differently
+- Maintain the same level of detail, formality, and personality as the original message
+
+TASK 2 - HANDLE NO_MESSAGE_SENT:
+For any position with "NO_MESSAGE_SENT":
+- Generate a natural, relevant response to the captain's question: "${captainQuestion}"
+- Match the tone and style of the real player responses
+
+TASK 3 - FILL EMPTY POSITIONS:
+For empty passenger positions (${emptyPositions.join(', ')}):
+- Generate responses that directly answer the captain's question: "${captainQuestion}"
+- Create distinct personality traits for each AI passenger
+- May include casual language, hesitations, or minor typos to sound natural
+- Must match the overall tone and style of the real player responses
+- Never reference other passengers' responses
+
+CRITICAL REQUIREMENTS:
+1. Each response must have a unique style and personality
+2. ALL responses must directly address the captain's question with relevant details
+3. Vary response length and complexity naturally
+4. ALWAYS maintain specific details from real player messages (activities, objects, locations mentioned)
+5. Make the rephrased real player messages difficult to distinguish from AI-generated ones`
         };
 
         // We're already in the translation round, so no need to transition again
@@ -291,6 +273,9 @@ Return valid JSON exactly like this:
         if (aiResponse) {
             try {
                 const parsedResponse = JSON.parse(aiResponse);
+                
+                // Debug output to verify response quality
+                console.log('[WebSocket] AI Response:', JSON.stringify(parsedResponse, null, 2));
                 
                 // Process all messages from the AI response
                 parsedResponse.players.forEach(player => {
@@ -547,6 +532,10 @@ function removeClientFromRoom(client, roomId) {
     // Find and remove player
     let disconnectedPlayer = null;
     const clientId = clientIds.get(client);
+    
+    // Get the current host before removing the player
+    const [currentHost] = Object.keys(room.room.players);
+    const isHostLeaving = room.room.players[currentHost]?.clientId === clientId;
 
     Object.entries(room.room.players).forEach(([nickname, player]) => {
         if (player.clientId === clientId) {
@@ -566,6 +555,14 @@ function removeClientFromRoom(client, roomId) {
         delete rooms[roomId];
         console.log(`[WebSocket] Room ${roomId} deleted (empty)`);
         return;
+    }
+    
+    // If the host was the one who left, mark the new host as ready
+    // This ensures the new captain can start the game
+    if (isHostLeaving && Object.keys(room.room.players).length > 0) {
+        const [newHost] = Object.keys(room.room.players);
+        room.room.players[newHost].ready = true;
+        console.log(`[WebSocket] New host ${newHost} is now ready`);
     }
 
     // Notify remaining players
@@ -613,7 +610,7 @@ function sendPassengerReveal(roomId) {
             isPrivate: false
         }
     });
-    
+
     // Broadcast to all clients in the room
     for (const [clientId, clientData] of Object.entries(clients)) {
         if (clientData.room === roomId) {
@@ -690,6 +687,15 @@ export default defineWebSocketHandler({
                                     removeClientFromRoom(clientData.socket, roomId);
                                 }
                             }
+                        }
+                        
+                        // Store the captain's message for translation
+                        if (room.room.round === 'question') {
+                            room.pendingMessages[data.payload.sender] = data.payload.text;
+                            console.log(`[WebSocket] Stored captain's question for room ${roomId}:`, {
+                                sender: data.payload.sender,
+                                message: data.payload.text
+                            });
                         }
                     } else {
                         // If non-host message, only send to sender and store for translation
@@ -781,6 +787,14 @@ export default defineWebSocketHandler({
                         return;
                     }
 
+                    if (Object.keys(room.room.players).length >= MAX_PLAYERS_PER_ROOM) {
+                        peer.send(JSON.stringify({
+                            type: 'ERROR',
+                            payload: 'Room is full'
+                        }));
+                        return;
+                    }
+
                     room.room.players[data.playerNickname] = {
                         nickname: data.playerNickname,
                         ready: false,
@@ -838,8 +852,7 @@ export default defineWebSocketHandler({
                         // Create a mapping of real players to passenger numbers
                         // Get non-host player nicknames
                         const nonHostPlayers = Object.entries(room.room.players)
-                            .filter(([nickname, _]) => nickname !== hostNickname)
-                            .map(([nickname, _]) => nickname);
+                            .filter(([nickname, _]) => nickname !== hostNickname);
                         
                         // Create an array of passenger positions (1-4)
                         const passengerPositions = [1, 2, 3, 4];
@@ -852,7 +865,7 @@ export default defineWebSocketHandler({
                         
                         // Create the mapping: { playerNickname: passengerNumber }
                         const passengerMapping = {};
-                        nonHostPlayers.forEach((nickname, index) => {
+                        nonHostPlayers.forEach(([nickname, player], index) => {
                             // Assign player to a random position (up to the number of real players)
                             passengerMapping[nickname] = passengerPositions[index];
                         });

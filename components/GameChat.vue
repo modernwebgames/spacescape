@@ -7,10 +7,10 @@
         <!-- Story Introduction -->
         <div class="mb-4 p-4 border rounded-lg border-blue-900 bg-gray-800/50">
           <p class="text-gray-400 text-sm whitespace-pre-line">
-            <b class="text-yellow-700">13.05.2998 – 03:23 AM</b><br>
-            <i class="text-yellow-700">Somewhere between the galaxies of Shenlooq and Ossdemar</i>
+            <b class="text-yellow-700">13.05.2998 – 43:23 AM (XMT+22)</b><br>
+            <i class="text-yellow-700">Somewhere between the Shenlooq and Ossdemar galaxies</i>
 
-            <br><br>You are passenger GДß3424/05 aboard LI-TRAVEL Flight RØШ79003. A few hours ago, you were partying with other passengers. Now, you're jolted awake by violent tremors and a blaring alarm.
+            <br><br>You are passenger GДß3424/05 aboard LI-TRAVEL™ Flight RØШ79003. A few hours ago, you were partying with other passengers. Now, you're jolted awake by violent tremors and a blaring alarm.
 
             <br><br>The ship's reactor has failed. In <b><i>10 minutes</i></b>, it will explode. Through flames and chaos, you manage to reach an escape pod. As you strap in, the pod's communication system crackles to life. This system, though rather primitive, can translate 8594 languages from 72 galaxies.
 
