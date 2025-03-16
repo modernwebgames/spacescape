@@ -103,6 +103,11 @@
         </div>
       </div>
     </client-only>
+    
+    <!-- Version number in bottom-right corner -->
+    <div class="absolute bottom-2 right-2 text-xs text-gray-300 opacity-70">
+      v0.1.0-alpha
+    </div>
   </div>
 </template>
 

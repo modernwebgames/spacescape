@@ -1,5 +1,3 @@
-# Spacescape
-
 _Transferred from [/politicals/tree/chatgame](https://github.com/sefasenlik/politicals/tree/chatgame)_
 
 <img src="/public/spacescape.png" alt="Game Logo" width="300"/>
@@ -114,3 +112,10 @@ MIT
 Korhan Özdemir - [@korhanozdemir](https://github.com/korhanozdemir)
 
 Sefa Şenlik - [@sefasenlik](https://github.com/sefasenlik)
+
+## Changelog
+
+### Version 0.1.0-alpha
+- Initial alpha release of the game.
+- Core gameplay mechanics implemented.
+- UI and controls added for PCs and mobile devices.
