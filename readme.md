@@ -11,8 +11,10 @@ A real-time multiplayer space-themed social deduction game built with Nuxt 3 and
 - Multiple game rounds (Question, Answer, Translation)
 - AI-generated responses for non-player characters
 - Game state synchronization across all players
-- Beautiful space-themed UI with animated starfield
+- Beautiful space-themed UI with optimized animated starfield
 - Responsive design with Tailwind CSS
+- Comprehensive scoring system that rewards player actions
+- Performance-optimized background animations
 
 ## Tech Stack
 
@@ -56,6 +58,22 @@ The game will be available at `http://localhost:3000`
    - Translation Round: AI-generated responses are shown
 4. After 10 cycles, the game ends and the Captain must decide which passenger pods to leave behind
 5. The game reveals which pods contained real players vs AI-generated characters
+6. Final scores are calculated and displayed to all players
+
+## Scoring System
+
+The game features a comprehensive scoring system:
+
+- **Captain Actions**:
+  - Asking a question: +10 points
+  - Correctly identifying an AI passenger: +50 points
+  - Incorrectly identifying a real player: -30 points
+
+- **Player Actions**:
+  - Sending a response: +5 points
+  - Surviving (not being left behind): +20 points
+
+Scores are displayed in real-time and a final scoreboard is shown at the end of the game.
 
 ## Project Structure
 
@@ -65,13 +83,17 @@ The game will be available at `http://localhost:3000`
 │   ├── NicknameModal.vue    # Player nickname input and validation
 │   ├── WelcomeScreen.vue    # Initial screen for hosting/joining games
 │   └── game/
-│       └── Board.vue        # Main game board component
+│       └── Board.vue        # Main game board component with starfield
 ├── composables/
-│   └── useGame.js           # Game state and WebSocket logic
+│   └── useGame.js           # Game state, WebSocket logic, and score tracking
 ├── pages/
 │   └── index.vue            # Main game page
 ├── server/
 │   ├── ai-chat.js           # AI-generated chat responses
+│   ├── game/
+│   │   └── GameLogic.js     # Core game logic and scoring system
+│   ├── services/
+│   │   └── GameController.js # Game flow and state management
 │   └── routes/
 │       └── _ws.js           # WebSocket server handler
 ├── app.vue                  # Root app component
@@ -79,21 +101,29 @@ The game will be available at `http://localhost:3000`
 └── tailwind.config.js       # Tailwind configuration
 ```
 
+## Performance Optimizations
+
+- **Starfield Background**: Optimized to use circular distribution of stars with reduced DOM elements (1,000 stars instead of 8,000)
+- **Resource Usage**: Background animations are dynamically sized based on screen diagonal for optimal coverage and performance
+- **Rendering**: Improved rendering approach to reduce CPU usage during animations
+
 ## Development Notes
 
 - The game uses Nitro's built-in WebSocket capabilities for real-time communication
 - Game state is held in memory on the server
 - Players are identified by nicknames
 - OpenAI API is used to generate responses for non-player characters
+- Scoring system is integrated with the game flow to reward player actions
 
 ## Future Improvements
 
 - [ ] Persistent game state
 - [ ] Player authentication
-- [ ] Leaderboard system
+- [ ] Enhanced leaderboard system
 - [ ] Additional game modes
 - [ ] Enhanced AI character responses
 - [ ] Mobile-optimized UI
+- [ ] Additional scoring mechanics
 
 ## Contributing
 
@@ -115,7 +145,12 @@ Sefa Şenlik - [@sefasenlik](https://github.com/sefasenlik)
 
 ## Changelog
 
+### Version 0.2.0
+- Added comprehensive scoring system
+- Optimized starfield background for better performance
+- Improved UI with score display and game feedback
+
 ### Version 0.1.0-alpha
-- Initial alpha release of the game.
-- Core gameplay mechanics implemented.
-- UI and controls added for PCs and mobile devices.
+- Initial alpha release of the game
+- Core gameplay mechanics implemented
+- UI and controls added for PCs and mobile devices
