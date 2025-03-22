@@ -203,18 +203,6 @@ export class GameController {
     let aiTimeoutTimer = null;
     
     try {
-      // First inform clients that processing has started
-      this.roomManager.broadcastToRoom(roomId, {
-        type: "CHAT_MESSAGE",
-        payload: {
-          roomKey: roomId,
-          sender: "DigiTranslate 3000",
-          text: "<i>Processing communication translations...</i>",
-          timestamp: Date.now(),
-          isPrivate: false,
-        },
-      });
-
       // Get player messages for AI processing
       const playerMessages = game.getPlayerMessages();
 

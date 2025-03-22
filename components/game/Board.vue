@@ -430,41 +430,6 @@ watch([() => gameState.value.room.countdown, () => gameState.value.room.round], 
   }
 });
 
-// Generate star background and set up responsive behavior
-onMounted(() => {
-  // Create initial starfield
-  createStarfield();
-  
-  // Check if device is mobile
-  checkMobile();
-  
-  // Add resize event listener
-  window.addEventListener('resize', checkMobile);
-  
-  // Add resize handler for starfield recreation
-  let resizeTimeout;
-  const handleResize = () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      createStarfield();
-    }, 300);
-  };
-  window.addEventListener('resize', handleResize);
-});
-
-// Clean up interval when component is unmounted
-onUnmounted(() => {
-  if (timerInterval.value) {
-    clearInterval(timerInterval.value);
-  }
-  
-  // Remove resize event listeners
-  window.removeEventListener('resize', checkMobile);
-  
-  // Remove starfield resize handler
-  window.removeEventListener('resize', handleResize);
-});
-
 // Function to create a rotating starfield
 function createStarfield() {
   const starfield = document.querySelector('.starfield');
@@ -473,27 +438,39 @@ function createStarfield() {
   // Clear any existing stars
   starfield.innerHTML = '';
   
-  // Create stars - increased count for better coverage
-  const starCount = 8000; 
+  // Create stars - reduced count since we're optimizing distribution
+  const starCount = 1000; 
   const colors = ['#ffffff', '#fffafa', '#f8f8ff', '#e6e6fa', '#b0e0e6', '#87cefa', '#add8e6'];
   
   // Calculate the diagonal length of the screen to ensure full coverage during rotation
-  const screenDiagonal = Math.sqrt(Math.pow(window.innerWidth, 2) + Math.pow(window.innerHeight, 2));
-  // Use a multiplier to ensure we have enough coverage (3x the diagonal)
-  const coverageArea = screenDiagonal * 3;
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  const screenDiagonal = Math.sqrt(Math.pow(screenWidth, 2) + Math.pow(screenHeight, 2));
+  
+  // Set the container size based on the screen diagonal
+  const starfieldContainer = document.querySelector('.starfield-container');
+  if (starfieldContainer) {
+    // Make the container a perfect circle with diameter = screenDiagonal
+    const containerSize = screenDiagonal;
+    starfieldContainer.style.width = `${containerSize}px`;
+    starfieldContainer.style.height = `${containerSize}px`;
+  }
+  
+  // Radius of our circular distribution (half the diagonal)
+  const radius = screenDiagonal / 2;
   
   for (let i = 0; i < starCount; i++) {
     const star = document.createElement('div');
     star.className = 'star';
     
-    // Random position - ensure stars are scattered across a much larger area
-    // Use a circular distribution to ensure better coverage during rotation
+    // Use a circular distribution with proper density
+    // For uniform distribution in a circle, we need to use the square root of random
+    const randomRadius = radius * Math.sqrt(Math.random());
     const angle = Math.random() * Math.PI * 2; // Random angle in radians
-    const distance = Math.random() * coverageArea; // Random distance from center
     
     // Convert polar coordinates to cartesian
-    const x = (window.innerWidth / 2) + Math.cos(angle) * distance;
-    const y = (window.innerHeight / 2) + Math.sin(angle) * distance;
+    const x = radius + randomRadius * Math.cos(angle);
+    const y = radius + randomRadius * Math.sin(angle);
     
     // Random size (0.5px to 5px)
     const size = 0.5 + Math.random() * 4.5;
@@ -521,6 +498,33 @@ function createStarfield() {
   }
 }
 
+// Resize handler function
+const handleResize = () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    createStarfield();
+  }, 300);
+};
+
+// Call createStarfield on mount
+onMounted(() => {
+  createStarfield();
+  window.addEventListener('resize', handleResize);
+});
+
+// Clean up interval when component is unmounted
+onUnmounted(() => {
+  if (timerInterval.value) {
+    clearInterval(timerInterval.value);
+  }
+  
+  // Remove resize event listeners
+  window.removeEventListener('resize', checkMobile);
+  
+  // Remove starfield resize handler
+  window.removeEventListener('resize', handleResize);
+});
+
 // Add copy function
 async function copyRoomKey() {
   try {
@@ -537,14 +541,6 @@ async function copyRoomKey() {
   }
 }
 
-// Resize handler function
-const handleResize = () => {
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(() => {
-    createStarfield();
-  }, 300);
-};
-
 // Resize timeout reference
 let resizeTimeout;
 </script>
@@ -554,13 +550,12 @@ let resizeTimeout;
   position: fixed;
   top: 0;
   left: 0;
-  width: 300%;
-  height: 300%;
   z-index: 0;
   overflow: hidden;
   transform: translate(-50%, -50%);
   left: 50%;
   top: 50%;
+  /* Width and height will be set dynamically in JS based on screen diagonal */
 }
 
 .starfield {
@@ -620,9 +615,6 @@ let resizeTimeout;
 
 /* Mobile responsive styles */
 @media (max-width: 1023px) {
-  .starfield-container {
-    width: 400%;
-    height: 400%;
-  }
+  /* No need for special container sizing for mobile since we're calculating dynamically */
 }
 </style>
