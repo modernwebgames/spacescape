@@ -17,6 +17,7 @@ export function useGame() {
   const nicknameError = ref(null);
   const isNicknameModalOpen = ref(false);
   const messages = ref([]);
+  const roomId = ref(null);
 
   let ws = null;
 
@@ -71,73 +72,261 @@ export function useGame() {
   }
 
   // WebSocket setup
-  const connect = () => {
-    if (!import.meta.client || connectionStatus.value === "connecting") return;
-
-    connectionStatus.value = "connecting";
-    error.value = null;
-
-    const wsUrl =
-      process.env.NODE_ENV === "production"
-        ? "wss://spacescape-worker.bkorhanozdemir.workers.dev"
-        : `${location.protocol === "https:" ? "wss" : "ws"}://${
-            location.host
-          }/_ws`;
-
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      console.log("[WebSocket] Connected");
-      connectionStatus.value = "connected";
-    };
-
-    ws.onmessage = handleWebSocketMessage;
-
-    ws.onerror = (err) => {
-      console.error("[WebSocket] Error:", err);
-      error.value = "Connection error";
-    };
-
-    ws.onclose = () => {
-      console.log("[WebSocket] Disconnected");
+  let heartbeatInterval = null;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_DELAY = 2000; // Start with 2 seconds
+  const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+  
+  const startHeartbeat = () => {
+    // Clear any existing heartbeat
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+    }
+    
+    // Start new heartbeat
+    heartbeatInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // Send a ping message
+        try {
+          ws.send(JSON.stringify({
+            type: "PING",
+            timestamp: Date.now()
+          }));
+        } catch (err) {
+          console.error("[WebSocket] Error sending heartbeat:", err);
+          reconnect();
+        }
+      } else if (connectionStatus.value === "connected") {
+        // Socket should be open but isn't
+        console.warn("[WebSocket] Heartbeat detected closed connection");
+        reconnect();
+      }
+    }, HEARTBEAT_INTERVAL);
+  };
+  
+  const stopHeartbeat = () => {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  };
+  
+  const reconnect = () => {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error("[WebSocket] Max reconnection attempts reached");
+      error.value = "Connection lost. Please refresh the page.";
       connectionStatus.value = "disconnected";
-      ws = null;
-    };
+      return;
+    }
+    
+    // Disconnect properly first
+    disconnect();
+    
+    // Exponential backoff for reconnect
+    const delay = RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts);
+    
+    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+    
+    setTimeout(() => {
+      reconnectAttempts++;
+      connect().then(() => {
+        // Reset attempts on successful connection
+        reconnectAttempts = 0;
+        
+        // If we were in a room, rejoin it
+        if (roomId.value && playerNickname.value) {
+          joinRoom(roomId.value).catch(err => {
+            console.error("[WebSocket] Failed to rejoin room:", err);
+            error.value = "Failed to rejoin game room. Please refresh.";
+          });
+        }
+      }).catch(err => {
+        console.error("[WebSocket] Reconnection failed:", err);
+        // Will trigger next reconnection attempt
+        reconnect();
+      });
+    }, delay);
+  };
+
+  const connect = () => {
+    return new Promise((resolve, reject) => {
+      if (!import.meta.client || connectionStatus.value === "connecting") {
+        return resolve(false);
+      }
+
+      connectionStatus.value = "connecting";
+      error.value = null;
+
+      const wsUrl =
+        process.env.NODE_ENV === "production"
+          ? "wss://spacescape-worker.bkorhanozdemir.workers.dev/ws?room=" +
+            (roomId.value || "")
+          : `${location.protocol === "https:" ? "wss" : "ws"}://${
+              location.host
+            }/_ws`;
+
+      // Close existing connection if any
+      if (ws) {
+        try {
+          ws.close();
+        } catch (err) {
+          // Ignore errors during close
+        }
+      }
+
+      try {
+        ws = new WebSocket(wsUrl);
+        
+        // Set a reasonable buffer size to avoid memory issues
+        if (ws.binaryType) {
+          ws.binaryType = "arraybuffer";
+        }
+
+        ws.onopen = () => {
+          console.log("[WebSocket] Connected");
+          connectionStatus.value = "connected";
+          
+          // Start the heartbeat
+          startHeartbeat();
+          
+          resolve(true);
+        };
+
+        ws.onmessage = handleWebSocketMessage;
+
+        ws.onerror = (err) => {
+          console.error("[WebSocket] Error:", err);
+          error.value = "Connection error";
+          
+          // Only reject if we're still connecting
+          if (connectionStatus.value === "connecting") {
+            reject(err);
+          } else {
+            // Otherwise try to reconnect
+            reconnect();
+          }
+        };
+
+        ws.onclose = (event) => {
+          console.log("[WebSocket] Disconnected with code:", event.code);
+          
+          // Stop heartbeat on disconnect
+          stopHeartbeat();
+          
+          if (connectionStatus.value === "connected") {
+            // Try to reconnect if connection was established before
+            connectionStatus.value = "disconnected";
+            reconnect();
+          } else if (connectionStatus.value === "connecting") {
+            // If still connecting, just mark as disconnected
+            connectionStatus.value = "disconnected";
+            reject(new Error("WebSocket connection closed before establishing"));
+          }
+        };
+
+        // Add timeout to prevent hanging forever
+        setTimeout(() => {
+          if (connectionStatus.value === "connecting") {
+            connectionStatus.value = "disconnected";
+            
+            if (ws) {
+              try {
+                ws.close();
+              } catch (err) {
+                // Ignore errors during close
+              }
+              ws = null;
+            }
+            
+            reject(new Error("Connection timeout"));
+          }
+        }, 5000);
+      } catch (err) {
+        console.error("[WebSocket] Failed to create WebSocket:", err);
+        connectionStatus.value = "disconnected";
+        reject(err);
+      }
+    });
   };
 
   const disconnect = () => {
+    // Stop heartbeat
+    stopHeartbeat();
+    
     if (ws) {
-      ws.close();
+      try {
+        ws.onclose = null; // Prevent reconnect attempts
+        ws.onerror = null;
+        ws.onmessage = null;
+        ws.onopen = null;
+        ws.close();
+      } catch (err) {
+        console.error("[WebSocket] Error during disconnect:", err);
+      }
       ws = null;
     }
+    
+    connectionStatus.value = "disconnected";
   };
   // Room management
   const createRoom = async () => {
     if (!playerNickname.value) {
       throw new Error("Please set your nickname first");
     }
+
     try {
       validateNickname(playerNickname.value);
     } catch (err) {
       throw new Error("Invalid nickname. Please set a valid nickname first");
     }
+
+    // Ensure we have a connection
     if (connectionStatus.value !== "connected") {
       await connect();
     }
 
+    // Only proceed if we're connected
+    if (connectionStatus.value !== "connected") {
+      throw new Error("Failed to establish WebSocket connection");
+    }
+
     // Generate room key
     const roomKey = Math.random().toString(36).substring(2, 6).toUpperCase();
+    roomId.value = roomKey;
 
-    const createMessage = {
-      type: "CREATE_ROOM",
-      roomId: roomKey,
-      playerNickname: playerNickname.value,
-    };
-    console.log("Sending create room request:", createMessage); // Log the message
+    return new Promise((resolve, reject) => {
+      const handleResponse = (event) => {
+        const message = JSON.parse(event.data);
 
-    ws.send(JSON.stringify(createMessage));
+        if (message.type === "ROOM_CREATED" && message.roomId === roomKey) {
+          ws.removeEventListener("message", handleResponse);
+          resolve(roomKey);
+        }
 
-    return roomKey;
+        if (message.type === "ERROR") {
+          ws.removeEventListener("message", handleResponse);
+          reject(new Error(message.payload));
+        }
+      };
+
+      ws.addEventListener("message", handleResponse);
+
+      const createMessage = {
+        type: "CREATE_ROOM",
+        roomId: roomKey,
+        playerNickname: playerNickname.value,
+      };
+
+      console.log("Sending create room request:", createMessage);
+      ws.send(JSON.stringify(createMessage));
+
+      // Add timeout to prevent hanging forever
+      setTimeout(() => {
+        ws.removeEventListener("message", handleResponse);
+        reject(new Error("Room creation timeout"));
+      }, 5000);
+    });
   };
 
   const joinRoom = async (roomKey) => {
@@ -149,6 +338,10 @@ export function useGame() {
     } catch (err) {
       throw new Error("Invalid nickname. Please set a valid nickname first");
     }
+
+    // Set the room ID for WebSocket connections
+    roomId.value = roomKey;
+
     if (connectionStatus.value !== "connected") {
       await connect();
     }
@@ -281,6 +474,7 @@ export function useGame() {
     playerNickname,
     nicknameError,
     messages,
+    roomId,
 
     // Actions
     connect,

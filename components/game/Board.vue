@@ -68,7 +68,11 @@
           </div>
         </div>
         
-        <div class="flex justify-end space-x-4">
+        <div class="flex justify-between items-center">
+          <div class="text-sm text-blue-300">
+            <p>Correct identifications: <span class="text-green-400">+50 points</span></p>
+            <p>Incorrect identifications: <span class="text-red-400">-30 points</span></p>
+          </div>
           <button 
             @click="submitCaptainDecision" 
             :disabled="selectedPassengerCount !== getFakePassengerCount()"
@@ -185,9 +189,55 @@
               >
                {{ player.ready ? '✓ Ready' : 'Not ready' }}
              </span>
+             <span v-else-if="gameState.room.scores && gameState.room.scores[nickname] !== undefined" 
+                   :class="gameState.room.scores[nickname] >= 0 ? 'text-green-500' : 'text-red-500'"
+             >
+               {{ gameState.room.scores[nickname] }} pts
+             </span>
             </li>
           </ul>
         </div>   
+
+        <!-- Scoreboard (visible during gameplay and after completion) -->
+        <div v-if="gameState.room.status !== 'waiting' && gameState.room.scores" class="mt-6 space-y-2">
+          <h4 class="font-medium text-blue-400 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+            </svg>
+            Scoreboard
+          </h4>
+          <div class="bg-gray-800/70 rounded-lg border border-blue-900 p-3">
+            <div class="text-sm text-blue-200 mb-2">
+              <div class="grid grid-cols-2 gap-1">
+                <div class="font-semibold">Action</div>
+                <div class="font-semibold text-right">Points</div>
+                
+                <div>Captain asks question</div>
+                <div class="text-right text-green-400">+10</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Player answers</div>
+                <div class="text-right text-green-400">+5</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Captain identifies AI</div>
+                <div class="text-right text-green-400">+50</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Captain mistakes real player</div>
+                <div class="text-right text-red-400">-30</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Player survives</div>
+                <div class="text-right text-green-400">+20</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Game Actions -->
         <div v-if="gameState.room.status === 'waiting'" class="space-y-2">
@@ -430,41 +480,6 @@ watch([() => gameState.value.room.countdown, () => gameState.value.room.round], 
   }
 });
 
-// Generate star background and set up responsive behavior
-onMounted(() => {
-  // Create initial starfield
-  createStarfield();
-  
-  // Check if device is mobile
-  checkMobile();
-  
-  // Add resize event listener
-  window.addEventListener('resize', checkMobile);
-  
-  // Add resize handler for starfield recreation
-  let resizeTimeout;
-  const handleResize = () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      createStarfield();
-    }, 300);
-  };
-  window.addEventListener('resize', handleResize);
-});
-
-// Clean up interval when component is unmounted
-onUnmounted(() => {
-  if (timerInterval.value) {
-    clearInterval(timerInterval.value);
-  }
-  
-  // Remove resize event listeners
-  window.removeEventListener('resize', checkMobile);
-  
-  // Remove starfield resize handler
-  window.removeEventListener('resize', handleResize);
-});
-
 // Function to create a rotating starfield
 function createStarfield() {
   const starfield = document.querySelector('.starfield');
@@ -473,27 +488,39 @@ function createStarfield() {
   // Clear any existing stars
   starfield.innerHTML = '';
   
-  // Create stars - increased count for better coverage
-  const starCount = 8000; 
+  // Create stars - reduced count since we're optimizing distribution
+  const starCount = 1000; 
   const colors = ['#ffffff', '#fffafa', '#f8f8ff', '#e6e6fa', '#b0e0e6', '#87cefa', '#add8e6'];
   
   // Calculate the diagonal length of the screen to ensure full coverage during rotation
-  const screenDiagonal = Math.sqrt(Math.pow(window.innerWidth, 2) + Math.pow(window.innerHeight, 2));
-  // Use a multiplier to ensure we have enough coverage (3x the diagonal)
-  const coverageArea = screenDiagonal * 3;
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  const screenDiagonal = Math.sqrt(Math.pow(screenWidth, 2) + Math.pow(screenHeight, 2));
+  
+  // Set the container size based on the screen diagonal
+  const starfieldContainer = document.querySelector('.starfield-container');
+  if (starfieldContainer) {
+    // Make the container a perfect circle with diameter = screenDiagonal
+    const containerSize = screenDiagonal;
+    starfieldContainer.style.width = `${containerSize}px`;
+    starfieldContainer.style.height = `${containerSize}px`;
+  }
+  
+  // Radius of our circular distribution (half the diagonal)
+  const radius = screenDiagonal / 2;
   
   for (let i = 0; i < starCount; i++) {
     const star = document.createElement('div');
     star.className = 'star';
     
-    // Random position - ensure stars are scattered across a much larger area
-    // Use a circular distribution to ensure better coverage during rotation
+    // Use a circular distribution with proper density
+    // For uniform distribution in a circle, we need to use the square root of random
+    const randomRadius = radius * Math.sqrt(Math.random());
     const angle = Math.random() * Math.PI * 2; // Random angle in radians
-    const distance = Math.random() * coverageArea; // Random distance from center
     
     // Convert polar coordinates to cartesian
-    const x = (window.innerWidth / 2) + Math.cos(angle) * distance;
-    const y = (window.innerHeight / 2) + Math.sin(angle) * distance;
+    const x = radius + randomRadius * Math.cos(angle);
+    const y = radius + randomRadius * Math.sin(angle);
     
     // Random size (0.5px to 5px)
     const size = 0.5 + Math.random() * 4.5;
@@ -521,6 +548,33 @@ function createStarfield() {
   }
 }
 
+// Resize handler function
+const handleResize = () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    createStarfield();
+  }, 300);
+};
+
+// Call createStarfield on mount
+onMounted(() => {
+  createStarfield();
+  window.addEventListener('resize', handleResize);
+});
+
+// Clean up interval when component is unmounted
+onUnmounted(() => {
+  if (timerInterval.value) {
+    clearInterval(timerInterval.value);
+  }
+  
+  // Remove resize event listeners
+  window.removeEventListener('resize', checkMobile);
+  
+  // Remove starfield resize handler
+  window.removeEventListener('resize', handleResize);
+});
+
 // Add copy function
 async function copyRoomKey() {
   try {
@@ -537,14 +591,6 @@ async function copyRoomKey() {
   }
 }
 
-// Resize handler function
-const handleResize = () => {
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(() => {
-    createStarfield();
-  }, 300);
-};
-
 // Resize timeout reference
 let resizeTimeout;
 </script>
@@ -554,13 +600,12 @@ let resizeTimeout;
   position: fixed;
   top: 0;
   left: 0;
-  width: 300%;
-  height: 300%;
   z-index: 0;
   overflow: hidden;
   transform: translate(-50%, -50%);
   left: 50%;
   top: 50%;
+  /* Width and height will be set dynamically in JS based on screen diagonal */
 }
 
 .starfield {
@@ -620,9 +665,6 @@ let resizeTimeout;
 
 /* Mobile responsive styles */
 @media (max-width: 1023px) {
-  .starfield-container {
-    width: 400%;
-    height: 400%;
-  }
+  /* No need for special container sizing for mobile since we're calculating dynamically */
 }
 </style>

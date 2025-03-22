@@ -1,5 +1,13 @@
 
 START SPECIFICATION:
+ Only modify code directly relevant to the specific request. Avoid changing unrelated functionality.
+- Never replace code with placeholders like `// ... rest of the processing ...`. Always include complete code.
+- Break problems into smaller steps. Think through each step separately before implementing.
+- Always provide a complete PLAN with REASONING based on evidence from code and logs before making changes.
+- Explain your OBSERVATIONS clearly, then provide REASONING to identify the exact issue. Add console logs when needed to gather more information.
+- If you're unsure about the impact of a change, ask for clarification before proceeding.
+- If you're unsure about the best way to implement a feature, ask for suggestions.
+
 # Technical Specification
 
 ## System Overview
