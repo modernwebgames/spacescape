@@ -428,6 +428,23 @@ CRITICAL REQUIREMENTS:
       type: "CHAT_MESSAGE",
       payload: revealMessage,
     });
+    
+    // Process captain's decision and calculate scores
+    const scoreResult = game.processCaptainDecision(selectedPassengers);
+    
+    // Send the score message to all clients
+    if (scoreResult && scoreResult.scoreMessage) {
+      this.roomManager.broadcastToRoom(roomId, {
+        type: "CHAT_MESSAGE",
+        payload: scoreResult.scoreMessage,
+      });
+    }
+    
+    // Update game state to include scores
+    this.roomManager.broadcastToRoom(roomId, {
+      type: "GAME_STATE",
+      payload: game.getGameState(),
+    });
 
     return true;
   }

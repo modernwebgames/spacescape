@@ -12,6 +12,7 @@ export class GameLogic {
       countdown: 10,
       cycleCount: 0,
       players: {},
+      scores: {}, // Track player scores
     };
     this.pendingMessages = {}; // Track messages from each player
     this.passengerMapping = null; // Will store the mapping of real players to passenger numbers
@@ -35,6 +36,9 @@ export class GameLogic {
       clientId,
       hasSentMessage: false,
     };
+    
+    // Initialize score for the player
+    this.room.scores[nickname] = 0;
 
     return {
       success: true,
@@ -160,6 +164,15 @@ export class GameLogic {
 
     // Store the message for translation
     this.pendingMessages[sender] = text;
+    
+    // Award points for sending messages
+    if (isHostMessage && this.room.round === "question") {
+      // Captain gets points for asking a question
+      this.room.scores[sender] += 10;
+    } else if (!isHostMessage && this.room.round === "answer") {
+      // Players get points for answering
+      this.room.scores[sender] += 5;
+    }
 
     return {
       success: true,
@@ -312,6 +325,66 @@ export class GameLogic {
       text: revealMessage,
       timestamp: Date.now(),
       isPrivate: false,
+    };
+  }
+  
+  // Process captain's decision and award points
+  processCaptainDecision(selectedPassengers) {
+    // Get the host nickname (captain)
+    const [hostNickname] = Object.keys(this.room.players);
+    
+    // Create a set of fake passenger positions (positions without real players)
+    const realPlayerPositions = new Set(Object.values(this.passengerMapping || {}));
+    const fakePositions = new Set();
+    for (let i = 1; i <= 4; i++) {
+      if (!realPlayerPositions.has(i)) {
+        fakePositions.add(i);
+      }
+    }
+    
+    // Calculate correct and incorrect decisions
+    let correctDecisions = 0;
+    let incorrectDecisions = 0;
+    
+    // Check each selected passenger
+    selectedPassengers.forEach((isSelected, index) => {
+      const passengerPosition = index + 1;
+      if (isSelected) {
+        if (fakePositions.has(passengerPosition)) {
+          correctDecisions++;
+        } else {
+          incorrectDecisions++;
+        }
+      }
+    });
+    
+    // Award points based on decisions
+    // Captain gets 50 points for each correct identification
+    this.room.scores[hostNickname] += correctDecisions * 50;
+    
+    // Captain loses 30 points for each incorrect identification (real player left behind)
+    this.room.scores[hostNickname] -= incorrectDecisions * 30;
+    
+    // Real players get 20 points if they were saved (not selected)
+    Object.entries(this.passengerMapping || {}).forEach(([playerName, position]) => {
+      if (!selectedPassengers[position - 1]) {
+        this.room.scores[playerName] += 20;
+      }
+    });
+    
+    // Generate a score summary message
+    let scoreMessage = "<b>Final Scores:</b><br>";
+    Object.entries(this.room.scores).forEach(([player, score]) => {
+      scoreMessage += `${player}: <span style="color: ${score >= 0 ? '#4ade80' : '#f87171'};">${score} points</span><br>`;
+    });
+    
+    return {
+      scoreMessage: {
+        sender: "System",
+        text: scoreMessage,
+        timestamp: Date.now(),
+        isPrivate: false,
+      }
     };
   }
 }

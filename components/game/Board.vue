@@ -68,7 +68,11 @@
           </div>
         </div>
         
-        <div class="flex justify-end space-x-4">
+        <div class="flex justify-between items-center">
+          <div class="text-sm text-blue-300">
+            <p>Correct identifications: <span class="text-green-400">+50 points</span></p>
+            <p>Incorrect identifications: <span class="text-red-400">-30 points</span></p>
+          </div>
           <button 
             @click="submitCaptainDecision" 
             :disabled="selectedPassengerCount !== getFakePassengerCount()"
@@ -185,9 +189,55 @@
               >
                {{ player.ready ? '✓ Ready' : 'Not ready' }}
              </span>
+             <span v-else-if="gameState.room.scores && gameState.room.scores[nickname] !== undefined" 
+                   :class="gameState.room.scores[nickname] >= 0 ? 'text-green-500' : 'text-red-500'"
+             >
+               {{ gameState.room.scores[nickname] }} pts
+             </span>
             </li>
           </ul>
         </div>   
+
+        <!-- Scoreboard (visible during gameplay and after completion) -->
+        <div v-if="gameState.room.status !== 'waiting' && gameState.room.scores" class="mt-6 space-y-2">
+          <h4 class="font-medium text-blue-400 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+            </svg>
+            Scoreboard
+          </h4>
+          <div class="bg-gray-800/70 rounded-lg border border-blue-900 p-3">
+            <div class="text-sm text-blue-200 mb-2">
+              <div class="grid grid-cols-2 gap-1">
+                <div class="font-semibold">Action</div>
+                <div class="font-semibold text-right">Points</div>
+                
+                <div>Captain asks question</div>
+                <div class="text-right text-green-400">+10</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Player answers</div>
+                <div class="text-right text-green-400">+5</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Captain identifies AI</div>
+                <div class="text-right text-green-400">+50</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Captain mistakes real player</div>
+                <div class="text-right text-red-400">-30</div>
+                
+                <div class="col-span-2 my-1 border-b border-blue-800/50"></div>
+                
+                <div>Player survives</div>
+                <div class="text-right text-green-400">+20</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Game Actions -->
         <div v-if="gameState.room.status === 'waiting'" class="space-y-2">
