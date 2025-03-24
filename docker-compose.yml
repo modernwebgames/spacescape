@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  spacescape:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spacescape-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    # Add any other environment variables your app needs
+    
+  # Add nginx as a reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: spacescape-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/www:/var/www/html
+    depends_on:
+      - spacescape
