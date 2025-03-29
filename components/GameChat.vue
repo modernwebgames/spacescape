@@ -48,12 +48,12 @@
   
       <!-- Message Input -->
       <div class="p-4 border-t border-blue-900 bg-gray-900">
-        <div class="flex gap-2">
+        <div class="flex gap-2 w-full">
           <input
             v-model="newMessage"
             type="text"
             placeholder="Type your message..."
-            class="flex-1 px-4 py-2 bg-gray-800 text-blue-100 border border-blue-900 rounded-lg 
+            class="w-4/5 px-4 py-2 bg-gray-800 text-blue-100 border border-blue-900 rounded-lg 
                    focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300
                    relative z-10"
             @keyup.enter="sendMessage"
@@ -62,7 +62,7 @@
 
           <!-- Send button -->
           <button
-            class="px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 border border-blue-500"
+            class="w-1/5 px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 border border-blue-500"
             :class="{ 'bg-blue-700 text-blue-100': !isSendDisabled, 'bg-gray-600 text-gray-400': isSendDisabled }"
             @click="sendMessage"
             :disabled="isSendDisabled"

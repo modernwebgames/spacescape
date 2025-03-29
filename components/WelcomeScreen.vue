@@ -106,7 +106,7 @@
     
     <!-- Version number in bottom-right corner -->
     <div class="absolute bottom-2 right-2 text-xs text-gray-300 opacity-70">
-      v0.2.0
+      v0.2.1
     </div>
   </div>
 </template>
