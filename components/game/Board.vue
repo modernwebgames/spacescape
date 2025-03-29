@@ -158,7 +158,7 @@
             
             <!-- Close button for mobile - integrated into header -->
             <button 
-              v-if="isMobile && sidebarOpen"
+              v-if="isMobile"
               @click="toggleSidebar" 
               class="lg:hidden bg-blue-900/90 text-red-400 p-2 rounded-lg shadow-lg border border-blue-500"
             >
@@ -317,7 +317,16 @@ const sidebarOpen = ref(false);
 
 // Check if device is mobile
 const checkMobile = () => {
+  const wasMobile = isMobile.value;
   isMobile.value = window.innerWidth < 1024; // lg breakpoint in Tailwind
+  
+  // If transitioning from desktop to mobile, close the sidebar
+  if (!wasMobile && isMobile.value) {
+    sidebarOpen.value = false;
+  } else if (isMobile.value && !sidebarOpen.value) {
+    // Ensure sidebar is closed by default on mobile
+    sidebarOpen.value = false;
+  }
 };
 
 // Toggle sidebar visibility on mobile
@@ -553,13 +562,16 @@ const handleResize = () => {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
     createStarfield();
+    checkMobile();
   }, 300);
 };
 
 // Call createStarfield on mount
 onMounted(() => {
   createStarfield();
+  checkMobile(); // Check mobile status on mount
   window.addEventListener('resize', handleResize);
+  window.addEventListener('resize', checkMobile);
 });
 
 // Clean up interval when component is unmounted
