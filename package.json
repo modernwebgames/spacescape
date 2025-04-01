@@ -16,9 +16,11 @@
   "dependencies": {
     "@headlessui/vue": "^1.7.23",
     "@nuxtjs/tailwindcss": "6.12.2",
+    "@pinia/nuxt": "^0.10.1",
     "autoprefixer": "^10.4.20",
     "nuxt": "^3.14.1592",
     "openai": "^4.77.4",
+    "pinia": "^3.0.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "vue": "latest",

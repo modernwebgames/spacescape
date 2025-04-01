@@ -1,8 +1,9 @@
 import { generateAIResponse } from "../ai-chat.js";
 
 // Constants
-const QUESTION_COUNTDOWN = 20000; // 20 seconds
-const ANSWER_COUNTDOWN = 30000; // 30 seconds
+const QUESTION_COUNTDOWN = 30000; // 30 seconds
+const ANSWER_COUNTDOWN = 20000; // 20 seconds
+const FIRST_QUESTION_COUNTDOWN = 20000; // 20 seconds for the first question round
 
 /**
  * Manages game flow, timers, and AI integration
@@ -25,7 +26,12 @@ export class GameController {
 
     // Set the initial countdown based on the round
     if (game.room.round === "question") {
-      game.room.countdown = QUESTION_COUNTDOWN / 1000;
+      // Special case for the first question round
+      if (game.room.cycleCount === 0) {
+        game.room.countdown = FIRST_QUESTION_COUNTDOWN / 1000;
+      } else {
+        game.room.countdown = QUESTION_COUNTDOWN / 1000;
+      }
     } else if (game.room.round === "answer") {
       game.room.countdown = ANSWER_COUNTDOWN / 1000;
     } else if (game.room.round === "translation") {
@@ -80,7 +86,7 @@ export class GameController {
     // Start a new countdown timer for the round transition
     let roundDuration;
     if (game.room.round === "question") {
-      roundDuration = QUESTION_COUNTDOWN;
+      roundDuration = game.room.cycleCount === 0 ? FIRST_QUESTION_COUNTDOWN : QUESTION_COUNTDOWN;
     } else if (game.room.round === "answer") {
       roundDuration = ANSWER_COUNTDOWN;
     } else {
