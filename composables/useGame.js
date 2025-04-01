@@ -158,13 +158,9 @@ export function useGame() {
       connectionStatus.value = "connecting";
       error.value = null;
 
-      const wsUrl =
-        process.env.NODE_ENV === "production"
-          ? "wss://spacescape-worker.bkorhanozdemir.workers.dev/ws?room=" +
-            (roomId.value || "")
-          : `${location.protocol === "https:" ? "wss" : "ws"}://${
-              location.host
-            }/_ws`;
+      // Use the current domain for WebSocket connection
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      const wsUrl = `${protocol}://${location.host}/ws`;
 
       // Close existing connection if any
       if (ws) {
