@@ -160,7 +160,7 @@ export function useGame() {
 
       // Use the current domain for WebSocket connection
       const protocol = location.protocol === "https:" ? "wss" : "ws";
-      const wsUrl = `${protocol}://${location.host}/ws`;
+      const wsUrl = `${protocol}://${location.host}/_ws`;
 
       // Close existing connection if any
       if (ws) {

@@ -19,7 +19,7 @@
       </button>
       
       <client-only>
-        <div class="max-w-md w-full p-8 bg-gray-900 rounded-lg shadow-lg border border-blue-900 z-10">
+        <div class="max-w-md w-full p-8 bg-gray-900 rounded-lg shadow-lg border border-blue-900 z-10 welcome-dialog">
           <!-- Initial Options -->
           <div v-if="currentView === 'initial'" class="space-y-4">
             <h1 class="text-2xl font-bold text-center">
@@ -254,6 +254,18 @@ async function handleJoinGame() {
   margin-top: 1vh; /* Push credits below the visible viewport */
   position: relative;
   z-index: 1;
+}
+
+/* Welcome dialog transparency for wide screens */
+@media (min-width: 768px) {
+  .welcome-dialog {
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+  }
+  
+  .welcome-dialog:hover {
+    opacity: 1;
+  }
 }
 
 .parallax-bg {
