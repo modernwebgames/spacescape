@@ -130,7 +130,7 @@
     <!-- Credits and version info in bottom footer -->
     <div class="w-full text-xs text-gray-500 border-t border-white/20 bg-gray-900/80 py-2 px-4 text-center">
       <div class="max-w-2xl mx-auto">
-        <p class="mb-1 font-bold">v0.2.2 • <a href="https://github.com/modernwebgames/spacescape" target="_blank" class="text-blue-400 hover:text-blue-300">GitHub repository</a></p>
+        <p class="mb-1 font-bold">v0.3.0 • <a href="https://github.com/modernwebgames/spacescape" target="_blank" class="text-blue-400 hover:text-blue-300">GitHub repository</a></p>
         <p class="mb-1 font-medium">Created by Sefa Şenlik and Korhan Özdemir</p><br>
         <p>Audio credits:</p>
         <p>"Inner Space" by Audiorezout – Source: Free Music Archive – License: CC BY-NC</p>

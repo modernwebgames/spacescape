@@ -11,6 +11,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - HOST=0.0.0.0
+    env_file:
+      - .env
     # Add any other environment variables your app needs
     
   # Add nginx as a reverse proxy
@@ -22,8 +25,14 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/ssl:/etc/nginx/ssl
-      - ./nginx/www:/var/www/html
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/www:/var/www/html:ro
+    environment:
+      - TZ=UTC
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     depends_on:
       - spacescape

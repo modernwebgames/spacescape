@@ -9,12 +9,13 @@ A real-time multiplayer space-themed social deduction game built with Nuxt 3 and
 - Real-time multiplayer gameplay with WebSocket communication
 - Nickname-based player identification
 - Multiple game rounds (Question, Answer, Translation)
-- AI-generated responses for non-player characters
+- AI-generated responses for android passengers
 - Game state synchronization across all players
 - Beautiful space-themed UI with optimized animated starfield
 - Responsive design with Tailwind CSS
 - Comprehensive scoring system that rewards player actions
 - Performance-optimized background animations
+- Adaptive UI for both desktop and mobile devices
 
 ## Tech Stack
 
@@ -53,11 +54,11 @@ The game will be available at `http://localhost:3000`
 1. Players join a room with a unique room key
 2. The first player becomes the Captain (host)
 3. Players go through multiple rounds of gameplay:
-   - Question Round: Players submit questions
+   - Question Round: The Captain asks questions to determine who is human
    - Answer Round: Players respond to questions
-   - Translation Round: AI-generated responses are shown
+   - Translation Round: AI-generated responses for android passengers are shown
 4. After 10 cycles, the game ends and the Captain must decide which passenger pods to leave behind
-5. The game reveals which pods contained real players vs AI-generated characters
+5. The game reveals which pods contained real players vs android passengers
 6. Final scores are calculated and displayed to all players
 
 ## Scoring System
@@ -66,7 +67,7 @@ The game features a comprehensive scoring system:
 
 - **Captain Actions**:
   - Asking a question: +10 points
-  - Correctly identifying an AI passenger: +50 points
+  - Correctly identifying an android: +50 points
   - Incorrectly identifying a real player: -30 points
 
 - **Player Actions**:
@@ -79,41 +80,55 @@ Scores are displayed in real-time and a final scoreboard is shown at the end of 
 
 ```
 ├── components/
-│   ├── GameChat.vue         # In-game chat functionality
-│   ├── NicknameModal.vue    # Player nickname input and validation
-│   ├── WelcomeScreen.vue    # Initial screen for hosting/joining games
+│   ├── NicknameModal.vue            # Player nickname input and validation
+│   ├── WelcomeScreen.vue            # Initial screen for hosting/joining games
 │   └── game/
-│       └── Board.vue        # Main game board component with starfield
+│       ├── Board.vue                # Main orchestrator component for game UI
+│       ├── GameChat.vue             # In-game chat functionality
+│       ├── StarfieldBackground.vue  # Animated space background
+│       ├── CountdownTimer.vue       # Game round timer with responsive layout
+│       ├── GameCompletedBanner.vue  # Game over notification
+│       ├── GameHeader.vue           # Room info and controls
+│       ├── GameSidebar.vue          # Player list, scoreboard, and game controls
+│       └── CaptainDecisionModal.vue # Interface for captain's final decision
 ├── composables/
-│   └── useGame.js           # Game state, WebSocket logic, and score tracking
+│   ├── useGame.js                   # Game state, WebSocket logic, and score tracking
+│   └── useAudio.js                  # Background music and sound effects
 ├── pages/
-│   └── index.vue            # Main game page
+│   └── index.vue                    # Main game page
 ├── server/
-│   ├── ai-chat.js           # AI-generated chat responses
-│   ├── game/
-│   │   └── GameLogic.js     # Core game logic and scoring system
-│   ├── services/
-│   │   └── GameController.js # Game flow and state management
+│   ├── ai-chat.js                   # AI-generated chat responses
 │   └── routes/
-│       └── _ws.js           # WebSocket server handler
-├── app.vue                  # Root app component
-├── nuxt.config.ts           # Nuxt configuration
-└── tailwind.config.js       # Tailwind configuration
+│       └── _ws.js                   # WebSocket server handler
+├── app.vue                          # Root app component
+├── nuxt.config.ts                   # Nuxt configuration
+└── tailwind.config.js               # Tailwind configuration
 ```
+
+## Responsive Design Features
+
+- **Adaptive Layouts**: Different UI arrangements for desktop and mobile devices
+- **Responsive Timer**: 
+  - On wide screens (≥1024px): Overlays as a floating element
+  - On narrow screens (<1024px): Appears as a fixed area at the top
+- **Mobile Sidebar**: Collapsible sidebar with toggle button for small screens
+- **Audio Controls**: Positioned for optimal access on different device types
 
 ## Performance Optimizations
 
 - **Starfield Background**: Optimized to use circular distribution of stars with reduced DOM elements (1,000 stars instead of 8,000)
 - **Resource Usage**: Background animations are dynamically sized based on screen diagonal for optimal coverage and performance
 - **Rendering**: Improved rendering approach to reduce CPU usage during animations
+- **Component Splitting**: Main gameplay components divided into smaller, focused units for better maintainability and performance
 
 ## Development Notes
 
 - The game uses Nitro's built-in WebSocket capabilities for real-time communication
 - Game state is held in memory on the server
 - Players are identified by nicknames
-- OpenAI API is used to generate responses for non-player characters
+- OpenAI API is used to generate responses for android passengers
 - Scoring system is integrated with the game flow to reward player actions
+- Component architecture follows single-responsibility principle
 
 ## Future Improvements
 
@@ -122,8 +137,13 @@ Scores are displayed in real-time and a final scoreboard is shown at the end of 
 - [ ] Enhanced leaderboard system
 - [ ] Additional game modes
 - [ ] Enhanced AI character responses
-- [ ] Mobile-optimized UI
 - [ ] Additional scoring mechanics
+- [ ] Sound effects for gameplay events
+- [ ] Dockerized deployment with SSL support
+
+## Deployment
+
+The game can be deployed using Docker and Nginx for production environments. See the Docker deployment guide in the docs folder for detailed instructions on setting up the application on an Ubuntu server.
 
 ## Contributing
 
@@ -144,6 +164,12 @@ Korhan Özdemir - [@korhanozdemir](https://github.com/korhanozdemir)
 Sefa Şenlik - [@sefasenlik](https://github.com/sefasenlik)
 
 ## Changelog
+
+### Version 0.3.0
+- Refactored Board.vue into smaller, more maintainable components
+- Added responsive timer layout for different screen sizes
+- Improved mobile UI with optimized sidebar
+- Enhanced game flow with clearer round indicators
 
 ### Version 0.2.0
 - Added comprehensive scoring system

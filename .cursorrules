@@ -1,4 +1,3 @@
-
 START SPECIFICATION:
  Only modify code directly relevant to the specific request. Avoid changing unrelated functionality.
 - Never replace code with placeholders like `// ... rest of the processing ...`. Always include complete code.
@@ -11,16 +10,20 @@ START SPECIFICATION:
 # Technical Specification
 
 ## System Overview
-The system is a real-time multiplayer territory claiming game built using Nuxt 3, Vue 3 Composition API, Nitro's WebSocket, and Tailwind CSS. The purpose of the system is to provide an engaging multiplayer experience where players can claim territories in real-time, with synchronized game states across all players. The main components include frontend Vue components, backend WebSocket services, and external APIs for additional functionalities.
+The system is a real-time multiplayer space-themed social deduction game built using Nuxt 3, Vue 3 Composition API, Nitro's WebSocket, Tailwind CSS and OpenAI API. The purpose of the system is to provide an engaging multiplayer experience where players must convince the captain they are human passengers while some may be androids. After several rounds of questions and answers, the captain must decide which escape pods to launch and which to leave behind. The main components include frontend Vue components, backend WebSocket services, and external APIs for additional functionalities.
 
 ### Main Components and Their Roles
 - **Frontend Components**: Handle user interactions, display game states, and manage player inputs.
-  - `components/GameChat.vue`: Manages in-game chat functionality.
   - `components/NicknameModal.vue`: Handles player nickname input and validation.
   - `components/WelcomeScreen.vue`: Manages the initial screen where players can host or join a game.
-  - `components/game/Board.vue`: The main game board component where the gameplay occurs.
+  - `components/game/GameChat.vue`: Manages in-game chat functionality with question and answer rounds.
+  - `components/game/Board.vue`: The main orchestrator component that provides layout for the game interface.
+  - `components/game/StarfieldBackground.vue`: Manages the animated star background.
+  - `components/game/CountdownTimer.vue`: Manages the game round timer and display.
+  - `components/game/GameSidebar.vue`: Shows player list, scoreboard, and controls.
+  - `components/game/CaptainDecisionModal.vue`: Interface for the captain to decide which pods to leave behind.
 - **Backend Services**: Manage game logic, WebSocket connections, and real-time updates.
-  - `server/ai-chat.js`: Handles AI-generated chat responses.
+  - `server/ai-chat.js`: Handles AI-generated chat responses for android passengers.
   - `server/routes/_ws.js`: Manages WebSocket connections, room creation, and game state transitions.
 - **Composables**: Manage game state and WebSocket logic.
   - `composables/useGame.js`: Centralizes game state management and WebSocket interactions.
@@ -33,13 +36,17 @@ The system is a real-time multiplayer territory claiming game built using Nuxt 3
 ## Core Functionality
 ### Primary Features and Their Implementation
 1. **Real-time Multiplayer Gameplay**
-   - **Components**: `components/game/Board.vue`
+   - **Components**: `components/game/Board.vue` and its child components
    - **Functions**: 
      - `toggleReady`: Manages player readiness.
      - `onStartGame`: Starts the game if all conditions are met.
+   - **Game Rounds**:
+     - Question Round: Captain asks questions to determine who is human.
+     - Answer Round: Players respond to questions.
+     - Translation Round: AI-generated responses are processed and displayed.
    - **Data Models**: 
-     - `translationCountdown`: Manages the countdown timer for translation rounds.
-     - `countdownTimer`: Holds the interval ID for the countdown timer.
+     - `clientCountdown`: Manages the countdown timer for game rounds.
+     - `timerInterval`: Holds the interval ID for the countdown timer.
      - `isPlayerReady`: Determines if the player is ready.
      - `canStartGame`: Determines if the game can be started.
 
@@ -53,7 +60,7 @@ The system is a real-time multiplayer territory claiming game built using Nuxt 3
      - `error`: Holds any validation error messages.
 
 3. **Game Chat**
-   - **Components**: `components/GameChat.vue`
+   - **Components**: `components/game/GameChat.vue`
    - **Functions**: 
      - `sendMessage`: Handles sending a chat message.
      - `formatTime`: Formats the timestamp of a message.
@@ -81,7 +88,7 @@ The system is a real-time multiplayer territory claiming game built using Nuxt 3
 6. **AI Chat Responses**
    - **Backend**: `server/ai-chat.js`
    - **Functions**: 
-     - `generateAIResponse`: Sends a message to the OpenAI API to generate a response.
+     - `generateAIResponse`: Sends a message to the OpenAI API to generate responses for android passengers.
 
 7. **WebSocket Server Handling**
    - **Backend**: `server/routes/_ws.js`
@@ -95,7 +102,7 @@ The system is a real-time multiplayer territory claiming game built using Nuxt 3
 ## Architecture
 ### Data Flow and Component Interaction
 1. **User Interaction**:
-   - Users interact with the frontend components (`GameChat.vue`, `NicknameModal.vue`, `WelcomeScreen.vue`, `Board.vue`) to perform actions like sending messages, setting nicknames, hosting/joining games, and playing the game.
+   - Users interact with the frontend components (`GameChat.vue`, `NicknameModal.vue`, `WelcomeScreen.vue`, `Board.vue` and its child components) to perform actions like sending messages, setting nicknames, hosting/joining games, and playing the game.
    
 2. **Frontend to Backend Communication**:
    - Frontend components emit events and call functions in `composables/useGame.js` to manage game state and WebSocket interactions.
@@ -103,7 +110,7 @@ The system is a real-time multiplayer territory claiming game built using Nuxt 3
 
 3. **Backend Processing**:
    - WebSocket server (`server/routes/_ws.js`) receives messages from clients, processes them, and broadcasts updates to all clients in a room.
-   - AI chat responses are generated by `server/ai-chat.js` and sent back to clients.
+   - AI chat responses are generated by `server/ai-chat.js` and sent back to clients to simulate android passengers.
 
 4. **Real-time Updates**:
    - WebSocket server manages real-time updates, ensuring all clients receive synchronized game states and messages.
